@@ -6,5 +6,6 @@ static-server.log
 .env
 .env*
 !.env.example
+.gcloud/
 .DS_Store
 Thumbs.db

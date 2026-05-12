@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Sem login no MVP, o navegador nao acessa Firestore diretamente.
+    // O Cloud Run usa Firebase Admin SDK, que bypassa rules via IAM.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
