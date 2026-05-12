@@ -139,14 +139,22 @@ export function useCommercialInputs() {
 }
 
 export function calculateInputMetrics(input: ChannelInput) {
-  const cpl = input.leads ? input.investimento / input.leads : 0;
-  const cpa = input.agendamentos ? input.investimento / input.agendamentos : 0;
-  const cpaComparecimento = input.comparecimentos ? input.investimento / input.comparecimentos : 0;
-  const cpv = input.vendas ? input.investimento / input.vendas : 0;
-  const roas = input.investimento ? input.receita / input.investimento : input.receita > 0 ? input.receita : 0;
-  const taxaAgendamento = input.interacoes ? (input.agendamentos / input.interacoes) * 100 : 0;
-  const taxaComparecimento = input.agendamentos ? (input.comparecimentos / input.agendamentos) * 100 : 0;
-  const taxaVenda = input.comparecimentos ? (input.vendas / input.comparecimentos) * 100 : 0;
+  const investimento = Number(input.investimento) || 0;
+  const receita = Number(input.receita) || 0;
+  const leads = Number(input.leads) || 0;
+  const interacoes = Number(input.interacoes) || 0;
+  const agendamentos = Number(input.agendamentos) || 0;
+  const comparecimentos = Number(input.comparecimentos) || 0;
+  const vendas = Number(input.vendas) || 0;
+
+  const cpl = leads ? investimento / leads : 0;
+  const cpa = agendamentos ? investimento / agendamentos : 0;
+  const cpaComparecimento = comparecimentos ? investimento / comparecimentos : 0;
+  const cpv = vendas ? investimento / vendas : 0;
+  const roas = investimento > 0 ? receita / investimento : 0;
+  const taxaAgendamento = interacoes ? (agendamentos / interacoes) * 100 : 0;
+  const taxaComparecimento = agendamentos ? (comparecimentos / agendamentos) * 100 : 0;
+  const taxaVenda = comparecimentos ? (vendas / comparecimentos) * 100 : 0;
 
   return {
     cpl,

@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { Check, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ProgressBar } from "@/components/progress-bar";
@@ -24,11 +21,8 @@ export function JourneyNode({ name, short, icon: Icon, accent, xp, progress, sta
   const done = status === "done";
 
   return (
-    <motion.article
+    <article
       className={`relative ${index % 2 ? "ml-auto" : "mr-auto"} w-[88%] max-w-sm`}
-      initial={{ opacity: 0, y: 22, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.05 }}
     >
       <div className="absolute left-1/2 top-full h-8 w-1 -translate-x-1/2 bg-slate-200 last:hidden" />
       <div className={`rounded-[26px] border-2 border-b-8 bg-white p-4 shadow-soft ${locked ? "border-slate-200 opacity-65" : "border-slate-200"}`}>
@@ -64,6 +58,6 @@ export function JourneyNode({ name, short, icon: Icon, accent, xp, progress, sta
           </div>
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

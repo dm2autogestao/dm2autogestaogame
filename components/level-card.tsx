@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { Crown, Sparkles } from "lucide-react";
 import type { Level } from "@/data/game-data";
 import { ProgressBar } from "@/components/progress-bar";
@@ -14,11 +11,8 @@ type LevelCardProps = {
 
 export function LevelCard({ level, xp, progress, nextLevelName }: LevelCardProps) {
   return (
-    <motion.section
+    <section
       className="relative overflow-hidden rounded-[28px] border border-white/70 bg-white p-5 shadow-soft"
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
     >
       <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-limepop/50" />
       <div className="relative flex items-start justify-between gap-4">
@@ -52,6 +46,6 @@ export function LevelCard({ level, xp, progress, nextLevelName }: LevelCardProps
           {nextLevelName ? `Proximo nivel: ${nextLevelName}` : "Nivel maximo alcancado. Hora de escalar."}
         </p>
       </div>
-    </motion.section>
+    </section>
   );
 }

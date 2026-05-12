@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -96,7 +95,7 @@ export default function Home() {
 
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <DesktopNavigation active={activeTab} onChange={setActiveTab} />
-        <AnimatePresence mode="wait">
+        <div>
           {activeTab === "journey" ? (
             <Screen key="journey">
               <LevelCard level={game.currentLevel} xp={game.totalXp} progress={game.levelProgress} nextLevelName={game.nextLevel?.name} />
@@ -127,12 +126,9 @@ export default function Home() {
                     {processNodes.map((node, index) => {
                       const Icon = node.icon;
                       return (
-                        <motion.div
+                        <div
                           key={node.id}
                           className="mx-auto flex w-full max-w-md items-center gap-3 rounded-3xl border-2 border-b-4 border-slate-200 bg-white p-4"
-                          initial={{ opacity: 0, y: 12 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
                         >
                           <div className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: node.color }}>
                             <Icon className="h-6 w-6" />
@@ -141,7 +137,7 @@ export default function Home() {
                             <h3 className="font-black text-ink">{node.title}</h3>
                             <p className="text-xs font-bold text-slate-500">{node.subtitle}</p>
                           </div>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
@@ -213,7 +209,7 @@ export default function Home() {
                 </div>
 
                 {(selectedBlockProgress?.percent ?? 0) === 100 ? (
-                  <motion.div className="mt-4 flex items-center gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4" initial={{ scale: 0.95 }} animate={{ scale: 1 }}>
+                  <div className="mt-4 flex items-center gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4">
                     <div className="grid h-12 w-12 place-items-center rounded-2xl bg-amberpop text-white">
                       <Medal className="h-7 w-7" />
                     </div>
@@ -221,7 +217,7 @@ export default function Home() {
                       <p className="font-black text-amber-800">Parabens, fase completa!</p>
                       <p className="text-xs font-bold text-amber-700">{medals.find((medal) => medal.blockId === selectedBlock.id)?.title ?? "Medalha desbloqueada"}</p>
                     </div>
-                  </motion.div>
+                  </div>
                 ) : null}
               </section>
 
@@ -399,7 +395,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <motion.div key={openProblem.id} className="sticky top-20 h-fit rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <div key={openProblem.id} className="sticky top-20 h-fit rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="grid h-14 w-14 place-items-center rounded-3xl bg-skyjoy text-white">
                       <OpenProblemIcon className="h-7 w-7" />
@@ -433,7 +429,7 @@ export default function Home() {
                       />
                     ))}
                   </div>
-                </motion.div>
+                </div>
               </section>
             </Screen>
           ) : null}
@@ -478,7 +474,7 @@ export default function Home() {
               </section>
             </Screen>
           ) : null}
-        </AnimatePresence>
+        </div>
       </div>
 
       <BottomNavigation items={navItems} active={activeTab} onChange={setActiveTab} />
@@ -487,11 +483,7 @@ export default function Home() {
 }
 
 function Screen({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
-      {children}
-    </motion.div>
-  );
+  return <div className="animate-[fadeIn_160ms_ease-out]">{children}</div>;
 }
 
 function DesktopNavigation({ active, onChange }: { active: string; onChange: (id: string) => void }) {
@@ -1078,15 +1070,33 @@ function CommercialDataPanel({
   );
 }
 
+function parseNumberInput(value: string) {
+  const normalized = value.replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const [displayValue, setDisplayValue] = useState(value ? String(value) : "");
+
+  useEffect(() => {
+    setDisplayValue(value ? String(value) : "");
+  }, [value]);
+
   return (
     <label className="block">
       <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</span>
       <input
-        type="number"
-        min="0"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        type="text"
+        inputMode="decimal"
+        value={displayValue}
+        placeholder="0"
+        onChange={(event) => {
+          const nextValue = event.target.value.replace(/[^\d.,]/g, "");
+          setDisplayValue(nextValue);
+          onChange(parseNumberInput(nextValue));
+        }}
+        onBlur={() => setDisplayValue(value ? String(value) : "")}
         className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
       />
     </label>

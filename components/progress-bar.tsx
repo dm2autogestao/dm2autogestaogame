@@ -1,7 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
-
 type ProgressBarProps = {
   value: number;
   color?: string;
@@ -21,12 +17,9 @@ export function ProgressBar({ value, color = "#58CC02", label, compact }: Progre
         </div>
       ) : null}
       <div className={`${compact ? "h-2" : "h-4"} overflow-hidden rounded-full border border-slate-200 bg-white shadow-inner`}>
-        <motion.div
+        <div
           className="h-full rounded-full"
-          style={{ backgroundColor: color }}
-          initial={{ width: 0 }}
-          animate={{ width: `${normalized}%` }}
-          transition={{ type: "spring", stiffness: 90, damping: 18 }}
+          style={{ backgroundColor: color, width: `${normalized}%`, transition: "width 180ms ease-out" }}
         />
       </div>
     </div>
