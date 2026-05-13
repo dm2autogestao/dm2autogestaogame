@@ -245,12 +245,7 @@ export default function Home() {
               </section>
 
               {selectedChannel ? (
-                <ChannelPlaybook
-                  channel={selectedChannel}
-                  input={commercial.inputs[selectedChannel.id]}
-                  onUpdate={commercial.updateChannel}
-                  onClear={commercial.clearChannel}
-                />
+                <ChannelPlaybook channel={selectedChannel} />
               ) : null}
               {selectedBlock.id === "vendedor" ? <SellerPlaybook /> : null}
 
@@ -314,7 +309,17 @@ export default function Home() {
                 inputs={commercial.inputs}
                 onUnitNameChange={commercial.updateUnitName}
                 onUpdate={commercial.updateChannel}
-                onClear={commercial.clearChannel}
+              />
+
+              <RoasCalculator
+                title="ROI de Campanha"
+                subtitle="Campanha realizada ou nova analise"
+                fieldPrefix="campaign-roi"
+                accent="#14B8A6"
+                icon={Calculator}
+                input={commercial.campaignRoi}
+                onUpdate={commercial.updateCampaignRoi}
+                onClear={commercial.clearCampaignRoi}
               />
 
               <section className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -874,17 +879,7 @@ function JourneyMiniCard({
   );
 }
 
-function ChannelPlaybook({
-  channel,
-  input,
-  onUpdate,
-  onClear
-}: {
-  channel: CaptureChannel;
-  input: ChannelInput;
-  onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
-  onClear: (channelId: BlockId) => void;
-}) {
+function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
   const ChannelIcon = channel.icon;
 
   return (
@@ -904,18 +899,6 @@ function ChannelPlaybook({
       </div>
 
       <div className="space-y-4">
-        {channel.id === "passivo-frio" ? (
-          <RoasCalculator
-            title="Calculadora de ROAS"
-            subtitle={`${channel.name} - ${channel.subtitle}`}
-            channel={channel}
-            input={input}
-            compact
-            onUpdate={onUpdate}
-            onClear={onClear}
-          />
-        ) : null}
-
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referencia</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">Use como guia do metodo. Os numeros reais ficam na aba Metricas, em Dados da unidade.</p>
@@ -1019,14 +1002,12 @@ function CommercialDataPanel({
   unitName,
   inputs,
   onUnitNameChange,
-  onUpdate,
-  onClear
+  onUpdate
 }: {
   unitName: string;
   inputs: CommercialInputs;
   onUnitNameChange: (unitName: string) => void;
   onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
-  onClear: (channelId: BlockId) => void;
 }) {
   return (
     <section className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -1056,17 +1037,6 @@ function CommercialDataPanel({
           Esse nome aparece no topo e na posicao da unidade.
         </span>
       </label>
-
-      <div className="mb-5">
-        <RoasCalculator
-          title="Calculadora de ROAS"
-          subtitle="Passivo Frio - Trafego Pago"
-          channel={captureChannels[0]}
-          input={inputs["passivo-frio"]}
-          onUpdate={onUpdate}
-          onClear={onClear}
-        />
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         {captureChannels.map((channel) => {
@@ -1219,32 +1189,33 @@ function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calcul
 function RoasCalculator({
   title,
   subtitle,
-  channel,
+  fieldPrefix,
+  accent,
+  icon: Icon,
   input,
-  compact,
   onUpdate,
   onClear
 }: {
   title: string;
   subtitle: string;
-  channel: CaptureChannel;
+  fieldPrefix: string;
+  accent: string;
+  icon: typeof BarChart3;
   input: ChannelInput;
-  compact?: boolean;
-  onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
-  onClear: (channelId: BlockId) => void;
+  onUpdate: <K extends keyof ChannelInput>(field: K, value: ChannelInput[K]) => void;
+  onClear: () => void;
 }) {
   const [recalculatedAt, setRecalculatedAt] = useState(0);
   const metrics = calculateInputMetrics(input);
   const status = getRoasStatus(metrics.roas);
   const diagnosis = getRoasDiagnosis(input, metrics);
-  const Icon = channel.icon;
   const progress = metrics.roas === null ? 0 : Math.min(100, Math.round((metrics.roas / 6) * 100));
 
   return (
-    <article className={`rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm ${compact ? "" : "h-full"}`}>
+    <article className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white" style={{ backgroundColor: channel.accent }}>
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white" style={{ backgroundColor: accent }}>
             <Icon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
@@ -1257,22 +1228,47 @@ function RoasCalculator({
         </div>
       </div>
 
+      <div className="mb-4 grid gap-3 rounded-[26px] border border-dashed border-slate-300 bg-slate-50 p-4 sm:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Campanhas salvas</p>
+          <h3 className="text-base font-black text-ink">Preparado para banco de dados</h3>
+          <p className="mt-1 text-xs font-bold text-slate-500">
+            Quando houver backend, este ponto pode listar campanhas realizadas e carregar os mesmos campos, resultado e acoes corretivas.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <select
+            disabled
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-400 outline-none"
+          >
+            <option>Selecionar campanha realizada</option>
+          </select>
+          <button
+            type="button"
+            disabled
+            className="rounded-2xl border-2 border-b-4 border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase text-slate-400"
+          >
+            Criar nova campanha
+          </button>
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField
           label="Nome da campanha"
           value={input.nomeCampanha}
           placeholder="Ex: Captação maio"
-          onChange={(value) => onUpdate(channel.id, "nomeCampanha", value)}
+          onChange={(value) => onUpdate("nomeCampanha", value)}
         />
-        <CampaignChannelField value={input.canalCampanha} onChange={(value) => onUpdate(channel.id, "canalCampanha", value)} />
-        <NumberField fieldKey={`${channel.id}-investimento`} label="Investimento em midia" value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
-        <NumberField fieldKey={`${channel.id}-leads`} label="Leads gerados" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
-        <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendamentos" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
-        <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparecimentos" value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
-        <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
-        <NumberField fieldKey={`${channel.id}-ticketMedio`} label="Ticket medio" value={input.ticketMedio} onChange={(value) => onUpdate(channel.id, "ticketMedio", value)} />
+        <CampaignChannelField value={input.canalCampanha} onChange={(value) => onUpdate("canalCampanha", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-investimento`} label="Investimento em midia" value={input.investimento} onChange={(value) => onUpdate("investimento", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-leads`} label="Leads gerados" value={input.leads} onChange={(value) => onUpdate("leads", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-agendamentos`} label="Agendamentos" value={input.agendamentos} onChange={(value) => onUpdate("agendamentos", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-comparecimentos`} label="Comparecimentos" value={input.comparecimentos} onChange={(value) => onUpdate("comparecimentos", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate("vendas", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-ticketMedio`} label="Ticket medio" value={input.ticketMedio} onChange={(value) => onUpdate("ticketMedio", value)} />
         <div className="sm:col-span-2">
-          <NumberField fieldKey={`${channel.id}-receita`} label="Receita total gerada" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
+          <NumberField fieldKey={`${fieldPrefix}-receita`} label="Receita total gerada" value={input.receita} onChange={(value) => onUpdate("receita", value)} />
           <p className="mt-1 text-xs font-bold text-slate-500">
             Receita manual tem prioridade. Sem ela, o app calcula vendas x ticket medio.
           </p>
@@ -1282,7 +1278,7 @@ function RoasCalculator({
       <div className={`mt-4 rounded-3xl border p-4 ${status.bg}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-slate-500">ROAS</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Retorno da campanha</p>
             <p className="text-4xl font-black text-ink">{formatMultiplier(metrics.roas)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1339,7 +1335,7 @@ function RoasCalculator({
         </button>
         <button
           type="button"
-          onClick={() => onClear(channel.id)}
+          onClick={onClear}
           className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-slate-300 bg-white px-4 py-2 text-xs font-black uppercase text-slate-600 transition active:translate-y-1 active:border-b-2"
         >
           <Trash2 className="h-4 w-4" />
