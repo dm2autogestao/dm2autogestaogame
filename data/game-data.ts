@@ -437,12 +437,6 @@ export const medals: Medal[] = [
   { id: "medal-disciplina", title: "Vendedor Disciplinado", blockId: "indicadores", icon: CheckCircle2 }
 ];
 
-export const ranking = [
-  { unit: "Unidade Jardins", xp: 1480, badge: "Unidade Campea" },
-  { unit: "Unidade Vila Nova", xp: 1210, badge: "Operacao Forte" },
-  { unit: "Sua Unidade", xp: 0, badge: "Em jogo" }
-];
-
 export const problems: Problem[] = [
   {
     id: "cpa-alto",

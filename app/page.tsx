@@ -36,7 +36,6 @@ import {
   missions,
   problems,
   processNodes,
-  ranking,
   sellerTraining
 } from "@/data/game-data";
 import type { BlockId, CaptureChannel, FunnelStep } from "@/data/game-data";
@@ -81,7 +80,6 @@ export default function Home() {
   const diagnosis = diagnosisRules.find((rule) => rule.blockId === weakestBlock?.id)?.text ?? "Continue executando metas e corrigindo gargalos semanalmente.";
 
   const unitName = commercial.unitName.trim() || "Sua Unidade";
-  const updatedRanking = ranking.map((item) => (item.unit === "Sua Unidade" ? { ...item, unit: unitName, xp: game.totalXp, badge: game.currentLevel.name } : item));
   const nextMove = getNextMove(commercial.inputs, weakestBlock?.id, diagnosis);
 
   function openMissions(blockId: BlockId) {
@@ -327,19 +325,20 @@ export default function Home() {
                 </div>
 
                 <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="mb-1 text-xl font-black text-ink">Ranking visual exemplo</h2>
-                  <p className="mb-3 text-xs font-bold text-slate-500">Ranking ilustrativo para gamificacao. O dado real aqui e o nome/XP da unidade.</p>
-                  <div className="space-y-3">
-                    {[...updatedRanking].sort((a, b) => b.xp - a.xp).map((item, index) => (
-                      <div key={item.unit} className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-sm font-black text-ink">{index + 1}</div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-ink">{item.unit}</p>
-                          <p className="text-xs font-bold text-slate-500">{item.badge}</p>
-                        </div>
-                        <XPBadge xp={item.xp} />
+                  <h2 className="mb-1 text-xl font-black text-ink">Posicao da unidade</h2>
+                  <p className="mb-3 text-xs font-bold text-slate-500">Sem unidades mockadas. Este card mostra apenas o desempenho registrado neste navegador.</p>
+                  <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-sm font-black text-emerald-700">1</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-ink">{unitName}</p>
+                        <p className="text-xs font-bold text-slate-500">{game.currentLevel.name}</p>
                       </div>
-                    ))}
+                      <XPBadge xp={game.totalXp} />
+                    </div>
+                    <div className="mt-4">
+                      <ProgressBar value={game.executionPercent} color={game.currentLevel.color} label="Execucao da unidade" />
+                    </div>
                   </div>
                 </div>
               </section>
@@ -1019,7 +1018,7 @@ function CommercialDataPanel({
           className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-4 text-base font-black text-ink outline-none transition placeholder:text-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
         />
         <span className="mt-2 block text-xs font-bold text-emerald-800">
-          Esse nome aparece no topo e no ranking visual da jornada.
+          Esse nome aparece no topo e na posicao da unidade.
         </span>
       </label>
 
@@ -1042,21 +1041,21 @@ function CommercialDataPanel({
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <NumberField label="Invest." value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
-                <NumberField label="Receita" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
-                <NumberField label="Leads" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
-                <NumberField label="Interacoes" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
-                <NumberField label="Agendas" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
-                <NumberField label="Comparec." value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
-                <NumberField label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
-                <NumberField label="Indicacoes" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
+                <NumberField fieldKey={`${channel.id}-investimento`} label="Invest." value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
+                <NumberField fieldKey={`${channel.id}-receita`} label="Receita" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
+                <NumberField fieldKey={`${channel.id}-leads`} label="Leads" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
+                <NumberField fieldKey={`${channel.id}-interacoes`} label="Interacoes" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
+                <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendas" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
+                <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparec." value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
+                <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
+                <NumberField fieldKey={`${channel.id}-indicacoes`} label="Indicacoes" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <MiniMetric label="CPL" value={formatCurrency(metrics.cpl)} />
                 <MiniMetric label="CPA" value={formatCurrency(metrics.cpa)} />
                 <MiniMetric label="CPV" value={formatCurrency(metrics.cpv)} />
-                <MiniMetric label="ROAS" value={`${metrics.roas.toFixed(1)}x`} />
+                <MiniMetric label="ROAS" value={formatMultiplier(metrics.roas)} />
                 <MiniMetric label="Agenda" value={`${metrics.taxaAgendamento.toFixed(0)}%`} />
                 <MiniMetric label="Comparec." value={`${metrics.taxaComparecimento.toFixed(0)}%`} />
                 <MiniMetric label="Venda" value={`${metrics.taxaVenda.toFixed(0)}%`} />
@@ -1076,12 +1075,12 @@ function parseNumberInput(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function NumberField({ fieldKey, label, value, onChange }: { fieldKey: string; label: string; value: number; onChange: (value: number) => void }) {
   const [displayValue, setDisplayValue] = useState(value ? String(value) : "");
 
   useEffect(() => {
     setDisplayValue(value ? String(value) : "");
-  }, [value]);
+  }, [fieldKey, value]);
 
   return (
     <label className="block">
@@ -1118,6 +1117,14 @@ function formatCurrency(value: number) {
     currency: "BRL",
     maximumFractionDigits: 0
   });
+}
+
+function formatMultiplier(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0.0x";
+  }
+
+  return `${value.toFixed(1)}x`;
 }
 
 function SellerPlaybook() {
