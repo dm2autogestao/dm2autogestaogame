@@ -904,15 +904,17 @@ function ChannelPlaybook({
       </div>
 
       <div className="space-y-4">
-        <RoasCalculator
-          title="Calculadora de ROAS"
-          subtitle={`${channel.name} - ${channel.subtitle}`}
-          channel={channel}
-          input={input}
-          compact
-          onUpdate={onUpdate}
-          onClear={onClear}
-        />
+        {channel.id === "passivo-frio" ? (
+          <RoasCalculator
+            title="Calculadora de ROAS"
+            subtitle={`${channel.name} - ${channel.subtitle}`}
+            channel={channel}
+            input={input}
+            compact
+            onUpdate={onUpdate}
+            onClear={onClear}
+          />
+        ) : null}
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referencia</h2>
@@ -1055,20 +1057,57 @@ function CommercialDataPanel({
         </span>
       </label>
 
+      <div className="mb-5">
+        <RoasCalculator
+          title="Calculadora de ROAS"
+          subtitle="Passivo Frio - Trafego Pago"
+          channel={captureChannels[0]}
+          input={inputs["passivo-frio"]}
+          onUpdate={onUpdate}
+          onClear={onClear}
+        />
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-2">
         {captureChannels.map((channel) => {
           const input = inputs[channel.id];
+          const metrics = calculateInputMetrics(input);
+          const Icon = channel.icon;
 
           return (
-            <RoasCalculator
-              key={channel.id}
-              title="Calculadora de ROAS"
-              subtitle={`${channel.name} - ${channel.subtitle}`}
-              channel={channel}
-              input={input}
-              onUpdate={onUpdate}
-              onClear={onClear}
-            />
+            <div key={channel.id} className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl text-white" style={{ backgroundColor: channel.accent }}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-ink">{channel.name}</h3>
+                  <p className="text-xs font-bold text-slate-500">{channel.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <NumberField fieldKey={`${channel.id}-investimento`} label="Invest." value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
+                <NumberField fieldKey={`${channel.id}-receita`} label="Receita" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
+                <NumberField fieldKey={`${channel.id}-leads`} label="Leads" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
+                <NumberField fieldKey={`${channel.id}-interacoes`} label="Interacoes" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
+                <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendas" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
+                <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparec." value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
+                <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
+                <NumberField fieldKey={`${channel.id}-indicacoes`} label="Indicacoes" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <MiniMetric label="CPL" value={formatCurrency(metrics.cpl)} />
+                <MiniMetric label="CPA" value={formatCurrency(metrics.cpa)} />
+                <MiniMetric label="CPV" value={formatCurrency(metrics.cpv)} />
+                <MiniMetric label="ROAS" value={formatMultiplier(metrics.roas)} />
+                <MiniMetric label="Agenda" value={formatPercent(metrics.taxaAgendamento)} />
+                <MiniMetric label="Comparec." value={formatPercent(metrics.taxaComparecimento)} />
+                <MiniMetric label="Venda" value={formatPercent(metrics.taxaVenda)} />
+                <MiniMetric label="CPA comp." value={formatCurrency(metrics.cpaComparecimento)} />
+              </div>
+            </div>
           );
         })}
       </div>
