@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   BellRing,
+  Calculator,
   CheckCircle2,
   ClipboardCheck,
   CalendarCheck,
@@ -12,10 +13,12 @@ import {
   Map,
   Medal,
   NotepadText,
+  RotateCcw,
   ShieldAlert,
   Sparkles,
   Trophy,
   TrendingUp,
+  Trash2,
   Zap
 } from "lucide-react";
 import { BottomNavigation } from "@/components/bottom-navigation";
@@ -241,7 +244,14 @@ export default function Home() {
                 </div>
               </section>
 
-              {selectedChannel ? <ChannelPlaybook channel={selectedChannel} /> : null}
+              {selectedChannel ? (
+                <ChannelPlaybook
+                  channel={selectedChannel}
+                  input={commercial.inputs[selectedChannel.id]}
+                  onUpdate={commercial.updateChannel}
+                  onClear={commercial.clearChannel}
+                />
+              ) : null}
               {selectedBlock.id === "vendedor" ? <SellerPlaybook /> : null}
 
               <section className="mt-5">
@@ -304,6 +314,7 @@ export default function Home() {
                 inputs={commercial.inputs}
                 onUnitNameChange={commercial.updateUnitName}
                 onUpdate={commercial.updateChannel}
+                onClear={commercial.clearChannel}
               />
 
               <section className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -863,7 +874,17 @@ function JourneyMiniCard({
   );
 }
 
-function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
+function ChannelPlaybook({
+  channel,
+  input,
+  onUpdate,
+  onClear
+}: {
+  channel: CaptureChannel;
+  input: ChannelInput;
+  onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
+  onClear: (channelId: BlockId) => void;
+}) {
   const ChannelIcon = channel.icon;
 
   return (
@@ -883,6 +904,16 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
       </div>
 
       <div className="space-y-4">
+        <RoasCalculator
+          title="Calculadora de ROAS"
+          subtitle={`${channel.name} - ${channel.subtitle}`}
+          channel={channel}
+          input={input}
+          compact
+          onUpdate={onUpdate}
+          onClear={onClear}
+        />
+
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referencia</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">Use como guia do metodo. Os numeros reais ficam na aba Metricas, em Dados da unidade.</p>
@@ -986,12 +1017,14 @@ function CommercialDataPanel({
   unitName,
   inputs,
   onUnitNameChange,
-  onUpdate
+  onUpdate,
+  onClear
 }: {
   unitName: string;
   inputs: CommercialInputs;
   onUnitNameChange: (unitName: string) => void;
-  onUpdate: (channelId: BlockId, field: keyof ChannelInput, value: number) => void;
+  onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
+  onClear: (channelId: BlockId) => void;
 }) {
   return (
     <section className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -1025,47 +1058,274 @@ function CommercialDataPanel({
       <div className="grid gap-4 xl:grid-cols-2">
         {captureChannels.map((channel) => {
           const input = inputs[channel.id];
-          const metrics = calculateInputMetrics(input);
-          const Icon = channel.icon;
 
           return (
-            <div key={channel.id} className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl text-white" style={{ backgroundColor: channel.accent }}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-ink">{channel.name}</h3>
-                  <p className="text-xs font-bold text-slate-500">{channel.subtitle}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <NumberField fieldKey={`${channel.id}-investimento`} label="Invest." value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
-                <NumberField fieldKey={`${channel.id}-receita`} label="Receita" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
-                <NumberField fieldKey={`${channel.id}-leads`} label="Leads" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
-                <NumberField fieldKey={`${channel.id}-interacoes`} label="Interacoes" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
-                <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendas" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
-                <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparec." value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
-                <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
-                <NumberField fieldKey={`${channel.id}-indicacoes`} label="Indicacoes" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <MiniMetric label="CPL" value={formatCurrency(metrics.cpl)} />
-                <MiniMetric label="CPA" value={formatCurrency(metrics.cpa)} />
-                <MiniMetric label="CPV" value={formatCurrency(metrics.cpv)} />
-                <MiniMetric label="ROAS" value={formatMultiplier(metrics.roas)} />
-                <MiniMetric label="Agenda" value={`${metrics.taxaAgendamento.toFixed(0)}%`} />
-                <MiniMetric label="Comparec." value={`${metrics.taxaComparecimento.toFixed(0)}%`} />
-                <MiniMetric label="Venda" value={`${metrics.taxaVenda.toFixed(0)}%`} />
-                <MiniMetric label="CPA comp." value={formatCurrency(metrics.cpaComparecimento)} />
-              </div>
-            </div>
+            <RoasCalculator
+              key={channel.id}
+              title="Calculadora de ROAS"
+              subtitle={`${channel.name} - ${channel.subtitle}`}
+              channel={channel}
+              input={input}
+              onUpdate={onUpdate}
+              onClear={onClear}
+            />
           );
         })}
       </div>
     </section>
+  );
+}
+
+type RoasStatus = {
+  label: string;
+  message: string;
+  xp: number;
+  color: string;
+  bg: string;
+};
+
+const campaignChannelOptions = ["Meta Ads", "Google Ads", "TikTok Ads", "Indicacao patrocinada", "Outro"] as const;
+
+function getRoasStatus(roas: number | null): RoasStatus {
+  if (roas === null) {
+    return {
+      label: "Dados insuficientes",
+      message: "Preencha investimento e receita para calcular o retorno da campanha.",
+      xp: 0,
+      color: "#64748B",
+      bg: "bg-slate-50 border-slate-200"
+    };
+  }
+
+  if (roas < 1) {
+    return {
+      label: "Critico",
+      message: "A campanha ainda nao esta retornando o investimento.",
+      xp: -50,
+      color: "#EF4444",
+      bg: "bg-red-50 border-red-200"
+    };
+  }
+
+  if (roas < 2) {
+    return {
+      label: "Atencao",
+      message: "A campanha esta proxima do empate, mas ainda precisa melhorar.",
+      xp: 20,
+      color: "#F97316",
+      bg: "bg-orange-50 border-orange-200"
+    };
+  }
+
+  if (roas < 4) {
+    return {
+      label: "Saudavel",
+      message: "A campanha ja gera retorno, mas ainda pode ser otimizada.",
+      xp: 80,
+      color: "#1CB0F6",
+      bg: "bg-sky-50 border-sky-200"
+    };
+  }
+
+  if (roas < 6) {
+    return {
+      label: "Forte",
+      message: "A campanha esta performando bem e pode ser acompanhada para escala.",
+      xp: 150,
+      color: "#58CC02",
+      bg: "bg-emerald-50 border-emerald-200"
+    };
+  }
+
+  return {
+    label: "Excelente",
+    message: "Campanha muito eficiente. Avaliar aumento gradual de investimento.",
+    xp: 250,
+    color: "#FFC800",
+    bg: "bg-amber-50 border-amber-200"
+  };
+}
+
+function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calculateInputMetrics>) {
+  const roas = metrics.roas;
+  const lowRoas = roas !== null && roas < 2;
+  const cplHigh = metrics.cpl !== null && (metrics.cpl >= 80 || (input.ticketMedio > 0 && metrics.cpl > input.ticketMedio * 0.08));
+  const manyLeadsFewSchedules = input.leads >= 10 && (metrics.taxaAgendamento === null || metrics.taxaAgendamento < 20);
+  const manySchedulesFewShows = input.agendamentos >= 5 && (metrics.taxaComparecimento === null || metrics.taxaComparecimento < 50);
+  const manyShowsFewSales = input.comparecimentos >= 3 && (metrics.taxaVenda === null || metrics.taxaVenda < 30);
+
+  if (!lowRoas && roas !== null) {
+    return ["manter acompanhamento", "aumentar investimento de forma gradual", "monitorar CPV", "acompanhar qualidade dos leads", "manter rotina comercial"];
+  }
+
+  if (lowRoas && cplHigh) {
+    return ["revisar publico", "revisar criativo", "revisar promessa", "validar ICP", "testar nova campanha"];
+  }
+
+  if (lowRoas && manyLeadsFewSchedules) {
+    return ["revisar abordagem comercial", "revisar qualificacao", "melhorar script", "reduzir atrito para agendar"];
+  }
+
+  if (lowRoas && manySchedulesFewShows) {
+    return ["criar lembrete automatico", "confirmar presenca", "reduzir intervalo entre contato e reuniao", "reforcar valor da reuniao"];
+  }
+
+  if (lowRoas && manyShowsFewSales) {
+    return ["revisar diagnostico comercial", "revisar proposta", "treinar fechamento", "mapear objecoes", "melhorar oferta"];
+  }
+
+  return ["preencher dados reais da campanha", "validar investimento e receita", "acompanhar leads, agenda, comparecimento e vendas"];
+}
+
+function RoasCalculator({
+  title,
+  subtitle,
+  channel,
+  input,
+  compact,
+  onUpdate,
+  onClear
+}: {
+  title: string;
+  subtitle: string;
+  channel: CaptureChannel;
+  input: ChannelInput;
+  compact?: boolean;
+  onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
+  onClear: (channelId: BlockId) => void;
+}) {
+  const [recalculatedAt, setRecalculatedAt] = useState(0);
+  const metrics = calculateInputMetrics(input);
+  const status = getRoasStatus(metrics.roas);
+  const diagnosis = getRoasDiagnosis(input, metrics);
+  const Icon = channel.icon;
+  const progress = metrics.roas === null ? 0 : Math.min(100, Math.round((metrics.roas / 6) * 100));
+
+  return (
+    <article className={`rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm ${compact ? "" : "h-full"}`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white" style={{ backgroundColor: channel.accent }}>
+            <Icon className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">{subtitle}</p>
+            <h2 className="text-xl font-black text-ink">{title}</h2>
+          </div>
+        </div>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-limepop/60 text-emerald-700">
+          <Calculator className="h-5 w-5" />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextField
+          label="Nome da campanha"
+          value={input.nomeCampanha}
+          placeholder="Ex: Captação maio"
+          onChange={(value) => onUpdate(channel.id, "nomeCampanha", value)}
+        />
+        <CampaignChannelField value={input.canalCampanha} onChange={(value) => onUpdate(channel.id, "canalCampanha", value)} />
+        <NumberField fieldKey={`${channel.id}-investimento`} label="Investimento em midia" value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
+        <NumberField fieldKey={`${channel.id}-leads`} label="Leads gerados" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
+        <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendamentos" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
+        <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparecimentos" value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
+        <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
+        <NumberField fieldKey={`${channel.id}-ticketMedio`} label="Ticket medio" value={input.ticketMedio} onChange={(value) => onUpdate(channel.id, "ticketMedio", value)} />
+        <div className="sm:col-span-2">
+          <NumberField fieldKey={`${channel.id}-receita`} label="Receita total gerada" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
+          <p className="mt-1 text-xs font-bold text-slate-500">
+            Receita manual tem prioridade. Sem ela, o app calcula vendas x ticket medio.
+          </p>
+        </div>
+      </div>
+
+      <div className={`mt-4 rounded-3xl border p-4 ${status.bg}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">ROAS</p>
+            <p className="text-4xl font-black text-ink">{formatMultiplier(metrics.roas)}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: status.color }}>
+              {status.label}
+            </span>
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${status.xp < 0 ? "bg-red-100 text-red-700" : "bg-white text-emerald-700"}`}>
+              XP {status.xp > 0 ? "+" : ""}{status.xp}
+            </span>
+          </div>
+        </div>
+        <p className="mt-2 text-sm font-bold text-slate-700">{status.message}</p>
+        <div className="mt-3">
+          <ProgressBar value={progress} color={status.color} label="Progresso ate ROAS 6x" compact />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <MiniMetric label="Receita total" value={formatCurrency(metrics.receita)} />
+        <MiniMetric label="Investimento" value={formatCurrency(input.investimento)} />
+        <MiniMetric label="CPL" value={formatCurrency(metrics.cpl)} />
+        <MiniMetric label="CPA agenda" value={formatCurrency(metrics.cpa)} />
+        <MiniMetric label="CPA comparec." value={formatCurrency(metrics.cpaComparecimento)} />
+        <MiniMetric label="CPV" value={formatCurrency(metrics.cpv)} />
+        <MiniMetric label="Taxa agenda" value={formatPercent(metrics.taxaAgendamento)} />
+        <MiniMetric label="Taxa comparec." value={formatPercent(metrics.taxaComparecimento)} />
+        <MiniMetric label="Taxa venda" value={formatPercent(metrics.taxaVenda)} />
+      </div>
+
+      <div className="mt-4 rounded-3xl bg-slate-50 p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Acoes corretivas</p>
+          <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-slate-500">
+            {metrics.receitaOrigem === "manual" ? "receita manual" : metrics.receitaOrigem === "calculada" ? "receita calculada" : "dados insuficientes"}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {diagnosis.map((action) => (
+            <span key={action} className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">
+              {action}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setRecalculatedAt(Date.now())}
+          className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-600 bg-meadow px-4 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Recalcular
+        </button>
+        <button
+          type="button"
+          onClick={() => onClear(channel.id)}
+          className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-slate-300 bg-white px-4 py-2 text-xs font-black uppercase text-slate-600 transition active:translate-y-1 active:border-b-2"
+        >
+          <Trash2 className="h-4 w-4" />
+          Limpar dados da campanha
+        </button>
+        {recalculatedAt ? <span className="self-center text-xs font-black text-emerald-700">Calculado agora</span> : null}
+      </div>
+    </article>
+  );
+}
+
+function CampaignChannelField({ value, onChange }: { value: ChannelInput["canalCampanha"]; onChange: (value: ChannelInput["canalCampanha"]) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Canal da campanha</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as ChannelInput["canalCampanha"])}
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+      >
+        {campaignChannelOptions.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -1111,7 +1371,11 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "dados insuficientes";
+  }
+
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -1119,12 +1383,20 @@ function formatCurrency(value: number) {
   });
 }
 
-function formatMultiplier(value: number) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0.0x";
+function formatMultiplier(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "dados insuficientes";
   }
 
   return `${value.toFixed(1)}x`;
+}
+
+function formatPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "dados insuficientes";
+  }
+
+  return `${value.toFixed(0)}%`;
 }
 
 function SellerPlaybook() {
