@@ -24,6 +24,7 @@ export type CommercialInputs = Record<"passivo-frio" | "passivo-quente" | "ativo
 export type CommercialProfile = {
   unitName: string;
   channels: CommercialInputs;
+  campaignRoi: ChannelInput;
 };
 
 const STORAGE_KEY = "jornada-comercial-inputs-v2";
@@ -85,7 +86,8 @@ export const defaultCommercialInputs: CommercialInputs = {
 
 const defaultProfile: CommercialProfile = {
   unitName: "Sua Unidade",
-  channels: defaultCommercialInputs
+  channels: defaultCommercialInputs,
+  campaignRoi: defaultCommercialInputs["passivo-frio"]
 };
 
 function mergeCommercialInputs(stored: Partial<CommercialInputs>): CommercialInputs {
@@ -112,13 +114,15 @@ function readProfile(): CommercialProfile {
     if (parsed.channels) {
       return {
         unitName: typeof parsed.unitName === "string" && parsed.unitName.trim() ? parsed.unitName : "Sua Unidade",
-        channels: mergeCommercialInputs(parsed.channels)
+        channels: mergeCommercialInputs(parsed.channels),
+        campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...parsed.campaignRoi }
       };
     }
 
     return {
       unitName: "Sua Unidade",
-      channels: mergeCommercialInputs(parsed)
+      channels: mergeCommercialInputs(parsed),
+      campaignRoi: defaultCommercialInputs["passivo-frio"]
     };
   } catch {
     return defaultProfile;
@@ -175,7 +179,33 @@ export function useCommercialInputs() {
     }));
   }
 
-  return { unitName: profile.unitName, inputs: profile.channels, updateUnitName, updateChannel, clearChannel };
+  function updateCampaignRoi<K extends keyof ChannelInput>(field: K, value: ChannelInput[K]) {
+    setProfile((current) => ({
+      ...current,
+      campaignRoi: {
+        ...current.campaignRoi,
+        [field]: typeof value === "number" ? (Number.isFinite(value) ? value : 0) : value
+      }
+    }));
+  }
+
+  function clearCampaignRoi() {
+    setProfile((current) => ({
+      ...current,
+      campaignRoi: defaultCommercialInputs["passivo-frio"]
+    }));
+  }
+
+  return {
+    unitName: profile.unitName,
+    inputs: profile.channels,
+    campaignRoi: profile.campaignRoi,
+    updateUnitName,
+    updateChannel,
+    clearChannel,
+    updateCampaignRoi,
+    clearCampaignRoi
+  };
 }
 
 export function calculateInputMetrics(input: ChannelInput) {
