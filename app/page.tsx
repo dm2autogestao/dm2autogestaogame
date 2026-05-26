@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signInWithPopup, signOut } from "firebase/auth";
 import {
   AlertTriangle,
   Ban,
@@ -68,6 +69,7 @@ import {
   getLocalUnitStorageKey
 } from "@/lib/unit-storage";
 import { maskCnpj, maskEmail } from "@/lib/data-masking";
+import { firebaseAuth, googleProvider } from "@/lib/firebase-client";
 
 type AuthRole = "franchisee" | "master";
 type AuthView = "login" | "register" | "recover";
@@ -211,6 +213,9 @@ export default function Home() {
       method: "POST",
       credentials: "include"
     }).catch(() => undefined);
+    if (firebaseAuth) {
+      void signOut(firebaseAuth).catch(() => undefined);
+    }
     setAuthSession(null);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_SESSION_KEY);
@@ -920,6 +925,29 @@ async function loginMasterOnServer(email: string, password: string) {
   return result.session as AuthSession;
 }
 
+async function loginWithGoogleOnServer(role: AuthRole) {
+  if (!firebaseAuth) {
+    throw new Error("Firebase nao esta configurado para login com Google.");
+  }
+
+  const credential = await signInWithPopup(firebaseAuth, googleProvider);
+  const idToken = await credential.user.getIdToken();
+  const response = await fetch("/api/auth/google", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, role })
+  });
+  const result = await readJsonResponse(response, "Nao foi possivel validar o login com Google agora.");
+
+  if (!response.ok) {
+    await signOut(firebaseAuth).catch(() => undefined);
+    throw new Error(result.error ?? "Nao foi possivel validar o login com Google agora.");
+  }
+
+  return role === "master" ? (result.session as AuthSession) : (result.unit as RegisteredUnit);
+}
+
 async function recoverFranchiseePassword(identifier: string) {
   const response = await fetch("/api/auth/recover", {
     method: "POST",
@@ -991,6 +1019,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   const [role, setRole] = useState<AuthRole>("franchisee");
   const [view, setView] = useState<AuthView>("login");
   const [message, setMessage] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [login, setLogin] = useState({ cnpj: "", email: "", password: "" });
   const [register, setRegister] = useState({
     unitName: "",
@@ -1039,6 +1068,34 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       city: unit.city,
       state: unit.state
     });
+  }
+
+  async function submitGoogleLogin() {
+    setMessage("");
+    setGoogleLoading(true);
+
+    try {
+      const result = await loginWithGoogleOnServer(role);
+
+      if (role === "master") {
+        onAuthenticated(result as AuthSession);
+        return;
+      }
+
+      const unit = result as RegisteredUnit;
+      onAuthenticated({
+        role: "franchisee",
+        cnpj: unit.cnpj,
+        unitName: unit.unitName,
+        responsibleName: unit.responsibleName,
+        city: unit.city,
+        state: unit.state
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel entrar com Google agora.");
+    } finally {
+      setGoogleLoading(false);
+    }
   }
 
   async function submitRegister(event: React.FormEvent<HTMLFormElement>) {
@@ -1241,6 +1298,15 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
                   <LogIn className="h-4 w-4" />
                   Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={submitGoogleLogin}
+                  disabled={googleLoading}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-slate-200 bg-white text-sm font-black uppercase text-slate-700 transition hover:border-slate-300 active:translate-y-1 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-base font-black text-[#4285F4]">G</span>
+                  {googleLoading ? "Conectando..." : "Entrar com Google"}
                 </button>
                 <div className="mt-2 grid gap-2 text-center text-sm font-black">
                   {role === "franchisee" ? (
