@@ -67,6 +67,7 @@ import {
   getFirebaseUnitPath,
   getLocalUnitStorageKey
 } from "@/lib/unit-storage";
+import { maskCnpj, maskEmail } from "@/lib/data-masking";
 
 type AuthRole = "franchisee" | "master";
 type AuthView = "login" | "register" | "recover";
@@ -86,9 +87,12 @@ type RegisteredUnit = {
   cnpj: string;
   email: string;
   phone: string;
+  cnpjMasked?: string;
+  emailMasked?: string;
+  phoneMasked?: string;
   city?: string;
   state?: string;
-  password: string;
+  password?: string;
   status: "pending" | "active" | "blocked";
   createdAt: string;
   updatedAt?: string;
@@ -128,8 +132,6 @@ type MasterUnitSummary = {
 
 const AUTH_SESSION_KEY = "dm2-auth-session-v1";
 const REGISTERED_UNITS_KEY = "dm2-registered-units-v1";
-const MASTER_EMAIL = "master@franquia.local";
-const MASTER_PASSWORD = "master123";
 
 const navItems = [
   { id: "journey", label: "Jornada", icon: MapIcon, group: "Operação" },
@@ -224,7 +226,7 @@ export default function Home() {
       <div className="mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-5 sm:px-6 md:flex-row lg:px-8">
         <SideNavigation
           title="Franqueado"
-          subtitle={`${authSession.unitName ?? unitName} - ${formatCnpj(authSession.cnpj ?? "")}`}
+          subtitle={`${authSession.unitName ?? unitName} - ${maskCnpj(authSession.cnpj ?? "")}`}
           items={navItems}
           active={activeTab}
           onChange={setActiveTab}
@@ -811,7 +813,8 @@ function readRegisteredUnits(): RegisteredUnit[] {
 
 function saveRegisteredUnits(units: RegisteredUnit[]) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(REGISTERED_UNITS_KEY, JSON.stringify(units));
+    const safeUnits = units.map(({ password, ...unit }) => unit);
+    window.localStorage.setItem(REGISTERED_UNITS_KEY, JSON.stringify(safeUnits));
   }
 }
 
@@ -857,6 +860,36 @@ async function deleteUnitFromDb(cnpj: string) {
   });
 }
 
+async function loginUnitOnServer(identifier: string, password: string) {
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier, password })
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "CNPJ, e-mail ou senha incorretos.");
+  }
+
+  return result.unit as RegisteredUnit;
+}
+
+async function loginMasterOnServer(email: string, password: string) {
+  const response = await fetch("/api/auth/master", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Acesso master nao encontrado.");
+  }
+
+  return result.session as AuthSession;
+}
+
 function normalizeCnpj(value: string) {
   return value.replace(/\D/g, "").slice(0, 14);
 }
@@ -868,6 +901,14 @@ function formatCnpj(value: string) {
   }
 
   return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
+function protectedCnpj(unit: RegisteredUnit) {
+  return unit.cnpjMasked ?? maskCnpj(unit.cnpj);
+}
+
+function protectedEmail(unit: RegisteredUnit) {
+  return unit.emailMasked ?? maskEmail(unit.email);
 }
 
 function normalizeSearch(value: string) {
@@ -923,28 +964,19 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     setMessage("");
 
     if (role === "master") {
-      if (login.email.trim().toLowerCase() === MASTER_EMAIL && login.password === MASTER_PASSWORD) {
-        onAuthenticated({ role: "master", unitName: "Franqueadora" });
-        return;
+      try {
+        onAuthenticated(await loginMasterOnServer(login.email, login.password));
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Acesso master nao encontrado.");
       }
-
-      setMessage("Acesso master nao encontrado. A conta master deve ser criada pelo administrador.");
       return;
     }
 
-    const loginIdentifier = login.cnpj.trim();
-    const cnpj = normalizeCnpj(loginIdentifier);
-    const email = loginIdentifier.toLowerCase();
-    const units = await loadRegisteredUnits();
-    const unit = units.find((item) => (item.cnpj === cnpj || item.email === email) && item.password === login.password);
-
-    if (!unit) {
-      setMessage("CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
-      return;
-    }
-
-    if (unit.status === "pending") {
-      setMessage("Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora.");
+    let unit: RegisteredUnit;
+    try {
+      unit = await loginUnitOnServer(login.cnpj.trim(), login.password);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
       return;
     }
 
@@ -1254,7 +1286,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       return "Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.";
     }
 
-    if (form.password.length < 6) {
+    if (form.password && form.password.length < 6) {
       return "A senha precisa ter pelo menos 6 caracteres.";
     }
 
@@ -1290,7 +1322,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       return "Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.";
     }
 
-    if (form.password.length < 6) {
+    if (form.password && form.password.length < 6) {
       return "A senha precisa ter pelo menos 6 caracteres.";
     }
 
@@ -1307,7 +1339,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       phone: form.phone.trim(),
       city: form.city.trim(),
       state: form.state.trim().toUpperCase(),
-      password: form.password,
+      ...(form.password ? { password: form.password } : {}),
       updatedAt: new Date().toISOString()
     } : unit);
 
@@ -1320,7 +1352,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       phone: form.phone.trim(),
       city: form.city.trim(),
       state: form.state.trim().toUpperCase(),
-      password: form.password
+      ...(form.password ? { password: form.password } : {})
     }).catch(() => setMasterNotice("Dados atualizados localmente, mas o banco nao confirmou a alteracao."));
     setSelectedUnitCnpj(cnpj);
     setEditUnitCnpj(null);
@@ -1329,7 +1361,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   }
 
   function resetUnitPassword(cnpj: string) {
-    const nextUnits = units.map((unit) => unit.cnpj === cnpj ? { ...unit, password: "123456", updatedAt: new Date().toISOString() } : unit);
+    const nextUnits = units.map((unit) => unit.cnpj === cnpj ? { ...unit, updatedAt: new Date().toISOString() } : unit);
     persistUnits(nextUnits);
     void updateUnitInDb(cnpj, { resetPassword: true }).catch(() => setMasterNotice("Senha resetada localmente, mas o banco nao confirmou a alteracao."));
     setMasterNotice("Senha resetada para 123456.");
@@ -1749,7 +1781,7 @@ function MasterCorrectiveActions({ summaries, onOpenDetails }: { summaries: Mast
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-black text-ink">{summary.unit.unitName}</p>
-                      <p className="text-xs font-bold text-slate-500">{formatLocation(summary.unit)} - {formatCnpj(summary.unit.cnpj)}</p>
+                      <p className="text-xs font-bold text-slate-500">{formatLocation(summary.unit)} - {protectedCnpj(summary.unit)}</p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{summary.score}%</span>
                   </div>
@@ -1830,7 +1862,7 @@ function MasterUnitsSection({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-black text-ink">{summary.unit.unitName}</p>
-                      <p className="truncate text-xs font-bold text-slate-500">{summary.unit.responsibleName} - {formatCnpj(summary.unit.cnpj)}</p>
+                      <p className="truncate text-xs font-bold text-slate-500">{summary.unit.responsibleName} - {protectedCnpj(summary.unit)}</p>
                       <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-slate-500">
                         <MapPin className="h-3.5 w-3.5" />
                         {formatLocation(summary.unit)}
@@ -1934,7 +1966,7 @@ function MasterPendingApprovals({
               </div>
               <div>
                 <p className="text-xs font-black uppercase tracking-wide text-slate-400">CNPJ</p>
-                <p className="text-sm font-black text-slate-700">{formatCnpj(summary.unit.cnpj)}</p>
+                <p className="text-sm font-black text-slate-700">{protectedCnpj(summary.unit)}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 <button type="button" onClick={() => onApprove(summary.unit.cnpj)} className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
@@ -2114,7 +2146,7 @@ function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Detalhe da unidade</p>
           <h2 className="text-2xl font-black text-ink">{summary.unit.unitName}</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">{summary.unit.responsibleName} - {formatCnpj(summary.unit.cnpj)}</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">{summary.unit.responsibleName} - {protectedCnpj(summary.unit)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-3 py-1 text-xs font-black uppercase ${getUnitStatusClass(summary.unit.status)}`}>
@@ -2249,7 +2281,7 @@ function EditUnitModal({
     phone: summary.unit.phone,
     city: summary.unit.city ?? "",
     state: summary.unit.state ?? "",
-    password: summary.unit.password
+    password: ""
   });
   const [message, setMessage] = useState("");
 

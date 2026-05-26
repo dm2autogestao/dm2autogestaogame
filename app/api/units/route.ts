@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getDb } from "@/lib/firestore-admin";
+import { maskCnpj, maskEmail, maskPhone } from "@/lib/data-masking";
+import { hashPassword } from "@/lib/password-security";
+
+export const runtime = "nodejs";
 
 type UnitPayload = {
   unitName?: string;
@@ -47,8 +51,20 @@ function serializeDate(value: unknown) {
 
 function serializeUnit(id: string, data: Record<string, unknown>) {
   return {
-    ...data,
     cnpj: typeof data.cnpj === "string" ? data.cnpj : id,
+    cnpjMasked: maskCnpj(typeof data.cnpj === "string" ? data.cnpj : id),
+    unitName: data.unitName ?? "",
+    responsibleName: data.responsibleName ?? "",
+    email: data.email ?? "",
+    emailMasked: maskEmail(typeof data.email === "string" ? data.email : ""),
+    phone: data.phone ?? "",
+    phoneMasked: maskPhone(typeof data.phone === "string" ? data.phone : ""),
+    city: data.city ?? "",
+    state: data.state ?? "",
+    status: data.status ?? "pending",
+    commercialInputs: data.commercialInputs,
+    gameProgress: data.gameProgress,
+    selfManagement: data.selfManagement,
     createdAt: serializeDate(data.createdAt) ?? new Date().toISOString(),
     updatedAt: serializeDate(data.updatedAt)
   };
@@ -69,13 +85,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dados obrigatorios ausentes." }, { status: 400 });
   }
 
+  const password = hashPassword(unit.password);
+
   await getDb().collection("units").doc(unit.cnpj).set({
     ...unit,
+    password: FieldValue.delete(),
+    passwordHash: password.hash,
+    passwordSalt: password.salt,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
 
-  return NextResponse.json({ ok: true, unit });
+  return NextResponse.json({ ok: true, unit: { ...unit, password: undefined } });
 }
 
 export async function PATCH(request: Request) {
@@ -99,7 +120,13 @@ export async function PATCH(request: Request) {
   if (body.city !== undefined) nextData.city = unit.city;
   if (body.state !== undefined) nextData.state = unit.state;
   if (body.status !== undefined) nextData.status = unit.status;
-  if (body.password !== undefined || body.resetPassword) nextData.password = body.resetPassword ? "123456" : unit.password;
+  if (body.password !== undefined || body.resetPassword) {
+    const password = hashPassword(body.resetPassword ? "123456" : unit.password);
+    nextData.password = FieldValue.delete();
+    nextData.passwordHash = password.hash;
+    nextData.passwordSalt = password.salt;
+    nextData.passwordUpdatedAt = FieldValue.serverTimestamp();
+  }
 
   if (unit.cnpj && unit.cnpj !== originalCnpj) {
     await getDb().collection("units").doc(unit.cnpj).set(nextData, { merge: true });
