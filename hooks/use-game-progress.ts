@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { journeyBlocks, levels, missions, problems } from "@/data/game-data";
 import type { BlockId, PillarStatus } from "@/data/game-data";
+import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 type ProgressState = {
   completedMissions: string[];
@@ -10,7 +11,8 @@ type ProgressState = {
   selectedBlockId: BlockId;
 };
 
-const STORAGE_KEY = "jornada-comercial-progress-v2";
+const STORAGE_VERSION = "v2";
+const LEGACY_STORAGE_KEY = "jornada-comercial-progress-v2";
 
 const initialProgress: ProgressState = {
   completedMissions: [],
@@ -22,13 +24,13 @@ function isBlockId(value: unknown): value is BlockId {
   return typeof value === "string" && journeyBlocks.some((block) => block.id === value);
 }
 
-function readProgress(): ProgressState {
+function readProgress(storageKey: string): ProgressState {
   if (typeof window === "undefined") {
     return initialProgress;
   }
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) {
       return initialProgress;
     }
@@ -48,20 +50,21 @@ function readProgress(): ProgressState {
   }
 }
 
-export function useGameProgress() {
+export function useGameProgress(unitId?: string) {
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [isReady, setIsReady] = useState(false);
+  const storageKey = getLocalUnitStorageKey(unitId, "gameProgress", STORAGE_VERSION);
 
   useEffect(() => {
-    setProgress(readProgress());
+    setProgress(readProgress(storageKey));
     setIsReady(true);
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (isReady) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+      window.localStorage.setItem(storageKey, JSON.stringify(progress));
     }
-  }, [isReady, progress]);
+  }, [isReady, progress, storageKey]);
 
   const completedSet = useMemo(() => new Set(progress.completedMissions), [progress.completedMissions]);
   const solutionsSet = useMemo(() => new Set(progress.appliedSolutions), [progress.appliedSolutions]);

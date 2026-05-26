@@ -3,25 +3,40 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Ban,
   BarChart3,
   BellRing,
+  Building2,
   Calculator,
   CheckCircle2,
   ClipboardCheck,
   CalendarCheck,
   Flame,
-  Map,
+  KeyRound,
+  Eye,
+  LogIn,
+  LogOut,
+  Map as MapIcon,
+  MapPin,
   Medal,
+  Mail,
   NotepadText,
+  Phone,
+  PieChart,
+  Pencil,
+  PlusCircle,
   RotateCcw,
+  Search,
+  ShieldCheck,
   ShieldAlert,
   Sparkles,
   Trophy,
   TrendingUp,
   Trash2,
+  X,
+  UserRound,
   Zap
 } from "lucide-react";
-import { BottomNavigation } from "@/components/bottom-navigation";
 import { Header } from "@/components/header";
 import { JourneyNode } from "@/components/journey-node";
 import { LevelCard } from "@/components/level-card";
@@ -35,6 +50,7 @@ import {
   captureChannels,
   diagnosisRules,
   journeyBlocks,
+  levels,
   medals,
   missions,
   problems,
@@ -43,25 +59,103 @@ import {
 } from "@/data/game-data";
 import type { BlockId, CaptureChannel, FunnelStep } from "@/data/game-data";
 import { calculateInputMetrics, useCommercialInputs } from "@/hooks/use-commercial-inputs";
-import type { ChannelInput, CommercialInputs } from "@/hooks/use-commercial-inputs";
+import type { CampaignRecord, ChannelInput, CommercialInputs } from "@/hooks/use-commercial-inputs";
 import { useGameProgress } from "@/hooks/use-game-progress";
 import { useSelfManagement } from "@/hooks/use-self-management";
 import type { WeeklyPlan } from "@/hooks/use-self-management";
+import {
+  getFirebaseUnitPath,
+  getLocalUnitStorageKey
+} from "@/lib/unit-storage";
+
+type AuthRole = "franchisee" | "master";
+type AuthView = "login" | "register" | "recover";
+
+type AuthSession = {
+  role: AuthRole;
+  cnpj?: string;
+  unitName?: string;
+  responsibleName?: string;
+  city?: string;
+  state?: string;
+};
+
+type RegisteredUnit = {
+  unitName: string;
+  responsibleName: string;
+  cnpj: string;
+  email: string;
+  phone: string;
+  city?: string;
+  state?: string;
+  password: string;
+  status: "pending" | "active" | "blocked";
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type MasterUnitForm = {
+  unitName: string;
+  responsibleName: string;
+  cnpj: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  password: string;
+};
+
+type MasterUnitSummary = {
+  unit: RegisteredUnit;
+  score: number;
+  xp: number;
+  roi: number | null;
+  levelName: string;
+  completedMissions: number;
+  totalMissions: number;
+  blockProgress: Array<{ id: BlockId; label: string; percent: number; color: string }>;
+  channels?: CommercialInputs;
+  campaignRoi: ChannelInput;
+  campaignRecords: CampaignRecord[];
+  weeklyPlan?: WeeklyPlan;
+  history: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
+  lastActivity: string;
+  firebasePaths: string[];
+};
+
+const AUTH_SESSION_KEY = "dm2-auth-session-v1";
+const REGISTERED_UNITS_KEY = "dm2-registered-units-v1";
+const MASTER_EMAIL = "master@franquia.local";
+const MASTER_PASSWORD = "master123";
 
 const navItems = [
-  { id: "journey", label: "Jornada", icon: Map },
-  { id: "missions", label: "Metas", icon: ClipboardCheck },
-  { id: "score", label: "Metricas", icon: BarChart3 },
-  { id: "problems", label: "Acoes", icon: ShieldAlert },
-  { id: "management", label: "Gestao", icon: CalendarCheck }
+  { id: "journey", label: "Jornada", icon: MapIcon, group: "Operação" },
+  { id: "missions", label: "Metas", icon: ClipboardCheck, group: "Operação" },
+  { id: "score", label: "Métricas", icon: BarChart3, group: "Indicadores" },
+  { id: "problems", label: "Ações", icon: ShieldAlert, group: "Indicadores" },
+  { id: "management", label: "Gestão", icon: CalendarCheck, group: "Rotina" }
+  ,{ id: "campaign-log", label: "Campanhas", icon: Calculator, group: "Indicadores" }
+];
+
+const masterNavItems = [
+  { id: "overview", label: "Geral", icon: BarChart3, group: "Rede" },
+  { id: "analytics", label: "Analytics", icon: PieChart, group: "Rede" },
+  { id: "units", label: "Unidades", icon: Building2, group: "Rede" },
+  { id: "register", label: "Cadastrar", icon: PlusCircle, group: "Controle" },
+  { id: "approvals", label: "Aprovações", icon: ShieldCheck, group: "Controle" },
+  { id: "correctives", label: "Ações", icon: ShieldAlert, group: "Controle" },
+  { id: "campaigns", label: "Campanhas", icon: Calculator, group: "Performance" },
+  { id: "rankings", label: "Rankings", icon: Trophy, group: "Performance" }
 ];
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("journey");
   const [openProblemId, setOpenProblemId] = useState(problems[0].id);
-  const game = useGameProgress();
-  const commercial = useCommercialInputs();
-  const selfManagement = useSelfManagement();
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
+  const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
+  const game = useGameProgress(activeUnitId);
+  const commercial = useCommercialInputs(activeUnitId);
+  const selfManagement = useSelfManagement(activeUnitId);
 
   const selectedBlock = journeyBlocks.find((block) => block.id === game.selectedBlockId) ?? journeyBlocks[0];
   const SelectedBlockIcon = selectedBlock.icon;
@@ -90,18 +184,58 @@ export default function Home() {
     setActiveTab("missions");
   }
 
-  return (
-    <main className="min-h-screen pb-28 text-ink">
-      <Header xp={game.totalXp} level={game.currentLevel} unitName={unitName} />
+  useEffect(() => {
+    setAuthSession(readAuthSession());
+  }, []);
 
-      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
-        <DesktopNavigation active={activeTab} onChange={setActiveTab} />
-        <div>
+  useEffect(() => {
+    if (authSession?.role === "franchisee" && authSession.unitName) {
+      commercial.updateUnitName(authSession.unitName);
+    }
+  }, [authSession?.role, authSession?.unitName]);
+
+  function startSession(session: AuthSession) {
+    setAuthSession(session);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    }
+  }
+
+  function logout() {
+    setAuthSession(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(AUTH_SESSION_KEY);
+    }
+  }
+
+  if (!authSession) {
+    return <AuthScreen onAuthenticated={startSession} />;
+  }
+
+  if (authSession.role === "master") {
+    return <MasterDashboard session={authSession} onLogout={logout} />;
+  }
+
+  return (
+    <main className="min-h-screen text-ink">
+      <div className="mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-5 sm:px-6 md:flex-row lg:px-8">
+        <SideNavigation
+          title="Franqueado"
+          subtitle={`${authSession.unitName ?? unitName} - ${formatCnpj(authSession.cnpj ?? "")}`}
+          items={navItems}
+          active={activeTab}
+          onChange={setActiveTab}
+          onLogout={logout}
+        />
+
+        <div className="min-w-0 flex-1 pb-10">
+          <Header xp={game.totalXp} level={game.currentLevel} unitName={unitName} />
+          <div className="mt-5">
           {activeTab === "journey" ? (
             <Screen key="journey">
               <LevelCard level={game.currentLevel} xp={game.totalXp} progress={game.levelProgress} nextLevelName={game.nextLevel?.name} />
 
-              <section className="mt-5 rounded-[28px] border border-white/70 bg-white p-5 shadow-soft">
+              <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-slate-400">Como jogar</p>
@@ -122,14 +256,14 @@ export default function Home() {
                   <h1 className="text-2xl font-black text-ink">Organograma comercial gamificado</h1>
                 </div>
 
-                <div className="rounded-[32px] border border-slate-200 bg-white/85 p-4 shadow-soft">
+                <div className="rounded-[32px] border border-white/80 bg-white/85 p-4 shadow-soft backdrop-blur">
                   <div className="grid gap-3">
                     {processNodes.map((node, index) => {
                       const Icon = node.icon;
                       return (
                         <div
                           key={node.id}
-                          className="mx-auto flex w-full max-w-md items-center gap-3 rounded-3xl border-2 border-b-4 border-slate-200 bg-white p-4"
+                          className="mx-auto flex w-full max-w-md items-center gap-3 rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm"
                         >
                           <div className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: node.color }}>
                             <Icon className="h-6 w-6" />
@@ -188,7 +322,7 @@ export default function Home() {
 
           {activeTab === "missions" ? (
             <Screen key="missions">
-              <section className="rounded-[28px] border border-white/70 bg-white p-5 shadow-soft">
+              <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <div className="flex items-start gap-4">
                   <div className="grid h-16 w-16 place-items-center rounded-3xl text-white" style={{ backgroundColor: selectedBlock.accent }}>
                     <SelectedBlockIcon className="h-8 w-8" />
@@ -268,7 +402,7 @@ export default function Home() {
 
           {activeTab === "score" ? (
             <Screen key="score">
-              <section className="overflow-hidden rounded-[28px] border border-white/70 bg-ink p-5 text-white shadow-soft">
+              <section className="overflow-hidden rounded-[32px] border border-emerald-900/10 bg-gradient-to-br from-ink to-emerald-900 p-5 text-white shadow-soft">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-white/50">Metricas da operacao</p>
@@ -295,7 +429,7 @@ export default function Home() {
                 </div>
               </section>
 
-              <section className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <h2 className="mb-4 text-xl font-black text-ink">Metricas por blocos</h2>
                 <div className="space-y-3">
                   {scoreBlocks.map((area) => (
@@ -323,7 +457,7 @@ export default function Home() {
               />
 
               <section className="mt-5 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                   <h2 className="mb-3 text-xl font-black text-ink">Medalhas</h2>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {medals.map((medal) => {
@@ -340,7 +474,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                   <h2 className="mb-1 text-xl font-black text-ink">Posicao da unidade</h2>
                   <p className="mb-3 text-xs font-bold text-slate-500">Sem unidades mockadas. Este card mostra apenas o desempenho registrado neste navegador.</p>
                   <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
@@ -363,7 +497,7 @@ export default function Home() {
 
           {activeTab === "problems" ? (
             <Screen key="problems">
-              <section className="rounded-[28px] border border-white/70 bg-white p-5 shadow-soft">
+              <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <div className="flex items-start gap-4">
                   <div className="grid h-16 w-16 place-items-center rounded-3xl bg-coral text-white">
                     <AlertTriangle className="h-8 w-8" />
@@ -410,7 +544,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div key={openProblem.id} className="sticky top-20 h-fit rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft">
+                <div key={openProblem.id} className="sticky top-24 h-fit rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="grid h-14 w-14 place-items-center rounded-3xl bg-skyjoy text-white">
                       <OpenProblemIcon className="h-7 w-7" />
@@ -449,9 +583,20 @@ export default function Home() {
             </Screen>
           ) : null}
 
+          {activeTab === "campaign-log" ? (
+            <Screen key="campaign-log">
+              <CampaignLog
+                unitCity={authSession.city ?? ""}
+                records={commercial.campaignRecords}
+                onAdd={commercial.addCampaignRecord}
+                onRemove={commercial.removeCampaignRecord}
+              />
+            </Screen>
+          ) : null}
+
           {activeTab === "management" ? (
             <Screen key="management">
-              <section className="rounded-[28px] border border-white/70 bg-white p-5 shadow-soft">
+              <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <div className="flex items-start gap-4">
                   <div className="grid h-16 w-16 place-items-center rounded-3xl bg-meadow text-white">
                     <CalendarCheck className="h-8 w-8" />
@@ -489,49 +634,1856 @@ export default function Home() {
               </section>
             </Screen>
           ) : null}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+type NavigationItem = {
+  id: string;
+  label: string;
+  icon: typeof BarChart3;
+  group: string;
+};
+
+function SideNavigation({
+  title,
+  subtitle,
+  items,
+  active,
+  onChange,
+  onLogout,
+  badges
+}: {
+  title: string;
+  subtitle: string;
+  items: NavigationItem[];
+  active: string;
+  onChange: (id: string) => void;
+  onLogout: () => void;
+  badges?: Record<string, number | string>;
+}) {
+  const groups = Array.from(new Set(items.map((item) => item.group)));
+
+  return (
+    <>
+      <aside className="sticky top-5 hidden w-64 shrink-0 rounded-[32px] border border-white/80 bg-white/88 p-4 shadow-soft backdrop-blur-xl md:block">
+        <div className="rounded-[26px] bg-gradient-to-br from-ink to-emerald-900 p-4 text-white shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/12 text-emerald-200">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-300">{title}</p>
+              <p className="mt-1 truncate text-sm font-black">{subtitle}</p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="mt-4 space-y-4">
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="mb-2 px-2 text-[11px] font-black uppercase tracking-wide text-slate-400">{group}</p>
+              <div className="space-y-2">
+                {items.filter((item) => item.group === group).map((item) => {
+                  const Icon = item.icon;
+                  const isActive = active === item.id;
+                  const badge = badges?.[item.id];
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onChange(item.id)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-black transition ${
+                        isActive
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm"
+                          : "border-transparent bg-transparent text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-3">
+                        <Icon className="h-5 w-5 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      {badge ? (
+                        <span className="rounded-full bg-coral px-2 py-0.5 text-[10px] font-black text-white">{badge}</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="mt-5 rounded-[26px] border border-slate-100 bg-slate-50/80 p-3">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-black text-ink">{subtitle}</p>
+              <p className="text-[11px] font-bold text-slate-500">{title}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </button>
+        </div>
+      </aside>
+
+      <div className="mb-4 w-full rounded-[28px] border border-white/80 bg-white/90 p-3 shadow-soft backdrop-blur md:hidden">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-ink px-3 py-3 text-white">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/12 text-emerald-200">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-300">{title}</p>
+              <p className="truncate text-xs font-black">{subtitle}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onLogout} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/10">
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const isActive = active === item.id;
+            const badge = badges?.[item.id];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onChange(item.id)}
+                className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-2 text-xs font-black transition ${
+                  isActive ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-slate-50 text-slate-500"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="truncate">{item.label}</span>
+                {badge ? <span className="rounded-full bg-coral px-1.5 py-0.5 text-[9px] text-white">{badge}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function readAuthSession(): AuthSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(AUTH_SESSION_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readRegisteredUnits(): RegisteredUnit[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const stored = window.localStorage.getItem(REGISTERED_UNITS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRegisteredUnits(units: RegisteredUnit[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(REGISTERED_UNITS_KEY, JSON.stringify(units));
+  }
+}
+
+function normalizeCnpj(value: string) {
+  return value.replace(/\D/g, "").slice(0, 14);
+}
+
+function formatCnpj(value: string) {
+  const digits = normalizeCnpj(value);
+  if (digits.length !== 14) {
+    return digits || "CNPJ não informado";
+  }
+
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function unitMatchesSearch(summary: MasterUnitSummary, search: string) {
+  const term = normalizeSearch(search);
+  if (!term) {
+    return true;
+  }
+
+  const haystack = [
+    summary.unit.unitName,
+    summary.unit.responsibleName,
+    summary.unit.email,
+    summary.unit.phone,
+    summary.unit.city,
+    summary.unit.state,
+    summary.unit.cnpj,
+    formatCnpj(summary.unit.cnpj)
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return normalizeSearch(haystack).includes(term);
+}
+
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const [role, setRole] = useState<AuthRole>("franchisee");
+  const [view, setView] = useState<AuthView>("login");
+  const [message, setMessage] = useState("");
+  const [login, setLogin] = useState({ cnpj: "", email: "", password: "" });
+  const [register, setRegister] = useState({
+    unitName: "",
+    responsibleName: "",
+    cnpj: "",
+    email: "",
+    phone: "",
+    city: "",
+    state: "",
+    password: "",
+    confirmPassword: ""
+  });
+  const [recover, setRecover] = useState({ identifier: "", password: "", confirmPassword: "" });
+
+  function submitLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (role === "master") {
+      if (login.email.trim().toLowerCase() === MASTER_EMAIL && login.password === MASTER_PASSWORD) {
+        onAuthenticated({ role: "master", unitName: "Franqueadora" });
+        return;
+      }
+
+      setMessage("Acesso master nao encontrado. A conta master deve ser criada pelo administrador.");
+      return;
+    }
+
+    const loginIdentifier = login.cnpj.trim();
+    const cnpj = normalizeCnpj(loginIdentifier);
+    const email = loginIdentifier.toLowerCase();
+    const unit = readRegisteredUnits().find((item) => (item.cnpj === cnpj || item.email === email) && item.password === login.password);
+
+    if (!unit) {
+      setMessage("CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
+      return;
+    }
+
+    if (unit.status === "pending") {
+      setMessage("Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora.");
+      return;
+    }
+
+    if (unit.status === "blocked") {
+      setMessage("Esta unidade está bloqueada. Fale com a franqueadora para reativar o acesso.");
+      return;
+    }
+
+    onAuthenticated({
+      role: "franchisee",
+      cnpj: unit.cnpj,
+      unitName: unit.unitName,
+      responsibleName: unit.responsibleName,
+      city: unit.city,
+      state: unit.state
+    });
+  }
+
+  function submitRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    const cnpj = normalizeCnpj(register.cnpj);
+    if (!register.unitName.trim() || !register.responsibleName.trim() || cnpj.length !== 14 || !register.email.trim() || !register.city.trim() || !register.state.trim()) {
+      setMessage("Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.");
+      return;
+    }
+
+    if (register.password.length < 6 || register.password !== register.confirmPassword) {
+      setMessage("A senha precisa ter pelo menos 6 caracteres e a confirmação deve ser igual.");
+      return;
+    }
+
+    const units = readRegisteredUnits();
+    if (units.some((unit) => unit.cnpj === cnpj)) {
+      setMessage("Este CNPJ já possui cadastro. Use login ou recuperação de senha.");
+      return;
+    }
+
+    const unit: RegisteredUnit = {
+      unitName: register.unitName.trim(),
+      responsibleName: register.responsibleName.trim(),
+      cnpj,
+      email: register.email.trim().toLowerCase(),
+      phone: register.phone.trim(),
+      city: register.city.trim(),
+      state: register.state.trim().toUpperCase(),
+      password: register.password,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    saveRegisteredUnits([...units, unit]);
+    setView("login");
+    setMessage("Cadastro enviado. A franqueadora precisa aprovar a unidade para liberar o acesso.");
+  }
+
+  function submitRecover(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (role === "master") {
+      setMessage("Recuperação master solicitada. Nesta etapa, a conta master continua sem cadastro público.");
+      return;
+    }
+
+    const units = readRegisteredUnits();
+    const identifier = normalizeCnpj(recover.identifier);
+    const unitIndex = units.findIndex(
+      (unit) => unit.cnpj === identifier || unit.email === recover.identifier.trim().toLowerCase()
+    );
+
+    if (unitIndex === -1) {
+      setMessage("Não encontramos uma unidade com esse CNPJ ou e-mail.");
+      return;
+    }
+
+    if (recover.password.length < 6 || recover.password !== recover.confirmPassword) {
+      setMessage("Informe e confirme uma nova senha com pelo menos 6 caracteres.");
+      return;
+    }
+
+    const nextUnits = [...units];
+    nextUnits[unitIndex] = { ...nextUnits[unitIndex], password: recover.password };
+    saveRegisteredUnits(nextUnits);
+    setView("login");
+    setMessage("Senha atualizada. Entre com CNPJ ou e-mail e a nova senha.");
+  }
+
+  function switchRole(nextRole: AuthRole) {
+    setRole(nextRole);
+    setView("login");
+    setMessage("");
+  }
+
+  return (
+    <main className="grid min-h-screen bg-white text-ink lg:grid-cols-[1.05fr_0.95fr]">
+      <section
+        className="relative hidden min-h-screen overflow-hidden bg-emerald-950 lg:block"
+        style={{
+          backgroundImage: "linear-gradient(90deg, rgba(3, 48, 39, 0.12), rgba(3, 48, 39, 0.04)), url('/login-clinic.png')",
+          backgroundPosition: "center",
+          backgroundSize: "cover"
+        }}
+      >
+      </section>
+
+      <section className="flex min-h-screen items-center justify-center bg-[#F5F8F6] px-4 py-8 sm:px-8">
+        <div className="w-full max-w-lg rounded-[34px] border border-white bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div className="mb-5 flex items-center justify-center">
+            <img src="/login-logo.webp" alt="Logo" className="h-12 w-auto object-contain" />
+          </div>
+
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-[22px] bg-slate-100 p-2">
+            <button
+              type="button"
+              onClick={() => switchRole("franchisee")}
+              className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-black transition ${
+                role === "franchisee" ? "bg-emerald-600 text-white" : "text-slate-500"
+              }`}
+            >
+              <Building2 className="h-4 w-4" />
+              Sou franqueado
+            </button>
+            <button
+              type="button"
+              onClick={() => switchRole("master")}
+              className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-black transition ${
+                role === "master" ? "bg-ink text-white" : "text-slate-500"
+              }`}
+            >
+              <Trophy className="h-4 w-4" />
+              Sou franqueadora
+            </button>
+          </div>
+
+          <div className="mb-5">
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+              {view === "login" ? "Acesso seguro" : view === "register" ? "Novo cadastro" : "Recuperação de senha"}
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-ink">
+              {view === "login" ? (role === "franchisee" ? "Acesse sua unidade" : "Acesse a visão master") : view === "register" ? "Cadastre-se" : "Esqueceu sua senha?"}
+            </h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">
+              {view === "login"
+                ? role === "franchisee" ? "Use CNPJ ou e-mail para entrar." : "Acesso exclusivo da franqueadora."
+                : view === "register" ? "Preencha os dados da unidade para solicitar acesso." : "Informe os dados para criar uma nova senha."}
+            </p>
+          </div>
+
+            {message ? (
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                {message}
+              </div>
+            ) : null}
+
+            {view === "login" ? (
+              <form onSubmit={submitLogin} className="grid gap-3">
+                {role === "franchisee" ? (
+                  <AuthInput icon={Building2} label="CNPJ ou e-mail" value={login.cnpj} onChange={(value) => setLogin((current) => ({ ...current, cnpj: value }))} placeholder="00.000.000/0000-00 ou unidade@email.com" />
+                ) : (
+                  <AuthInput icon={Mail} label="E-mail master" value={login.email} onChange={(value) => setLogin((current) => ({ ...current, email: value }))} placeholder="master@franquia.com" />
+                )}
+                <AuthInput icon={KeyRound} label="Senha" type="password" value={login.password} onChange={(value) => setLogin((current) => ({ ...current, password: value }))} placeholder="Digite sua senha" />
+                <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+                  <LogIn className="h-4 w-4" />
+                  Entrar
+                </button>
+                <div className="mt-2 grid gap-2 text-center text-sm font-black">
+                  {role === "franchisee" ? (
+                    <button type="button" onClick={() => setView("register")} className="text-emerald-700 transition hover:text-emerald-900">
+                      Cadastre-se
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={() => setView("recover")} className="text-slate-500 transition hover:text-ink">
+                    Esqueceu sua senha?
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {view === "register" && role === "franchisee" ? (
+              <form onSubmit={submitRegister} className="grid gap-3 sm:grid-cols-2">
+                <AuthInput icon={Building2} label="Nome da unidade" value={register.unitName} onChange={(value) => setRegister((current) => ({ ...current, unitName: value }))} placeholder="Unidade Centro" />
+                <AuthInput icon={UserRound} label="Responsável" value={register.responsibleName} onChange={(value) => setRegister((current) => ({ ...current, responsibleName: value }))} placeholder="Nome do franqueado" />
+                <AuthInput icon={Building2} label="CNPJ" value={register.cnpj} onChange={(value) => setRegister((current) => ({ ...current, cnpj: value }))} placeholder="00.000.000/0000-00" />
+                <AuthInput icon={Mail} label="E-mail" value={register.email} onChange={(value) => setRegister((current) => ({ ...current, email: value }))} placeholder="unidade@email.com" />
+                <AuthInput icon={Phone} label="Telefone" value={register.phone} onChange={(value) => setRegister((current) => ({ ...current, phone: value }))} placeholder="(00) 00000-0000" />
+                <AuthInput icon={MapPin} label="Cidade" value={register.city} onChange={(value) => setRegister((current) => ({ ...current, city: value }))} placeholder="São Paulo" />
+                <AuthInput icon={MapPin} label="Estado" value={register.state} onChange={(value) => setRegister((current) => ({ ...current, state: value }))} placeholder="SP" />
+                <AuthInput icon={KeyRound} label="Criar senha" type="password" value={register.password} onChange={(value) => setRegister((current) => ({ ...current, password: value }))} placeholder="Mínimo 6 caracteres" />
+                <AuthInput icon={KeyRound} label="Confirmar senha" type="password" value={register.confirmPassword} onChange={(value) => setRegister((current) => ({ ...current, confirmPassword: value }))} placeholder="Repita a senha" />
+                <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2 sm:col-span-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Cadastre-se
+                </button>
+                <button type="button" onClick={() => setView("login")} className="text-center text-sm font-black text-slate-500 transition hover:text-ink sm:col-span-2">
+                  Já tenho cadastro
+                </button>
+              </form>
+            ) : null}
+
+            {view === "recover" ? (
+              <form onSubmit={submitRecover} className="grid gap-3">
+                <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "master@franquia.com"} />
+                {role === "franchisee" ? (
+                  <>
+                    <AuthInput icon={KeyRound} label="Nova senha" type="password" value={recover.password} onChange={(value) => setRecover((current) => ({ ...current, password: value }))} placeholder="Minimo 6 caracteres" />
+                    <AuthInput icon={KeyRound} label="Confirmar nova senha" type="password" value={recover.confirmPassword} onChange={(value) => setRecover((current) => ({ ...current, confirmPassword: value }))} placeholder="Repita a senha" />
+                  </>
+                ) : null}
+                <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+                  <KeyRound className="h-4 w-4" />
+                  Recuperar senha
+                </button>
+                <button type="button" onClick={() => setView("login")} className="text-center text-sm font-black text-slate-500 transition hover:text-ink">
+                  Voltar para o login
+                </button>
+              </form>
+            ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function AuthTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-2 text-xs font-black uppercase transition ${
+        active ? "bg-limepop/50 text-emerald-700" : "bg-slate-100 text-slate-500"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function AuthInput({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text"
+}: {
+  icon: typeof Building2;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</span>
+      <div className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
+        <Icon className="h-4 w-4 shrink-0 text-emerald-600" />
+        <input
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="h-full min-w-0 flex-1 bg-transparent text-sm font-black text-ink outline-none placeholder:text-slate-300"
+        />
+      </div>
+    </label>
+  );
+}
+
+function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout: () => void }) {
+  const [units, setUnits] = useState<RegisteredUnit[]>([]);
+  const [selectedUnitCnpj, setSelectedUnitCnpj] = useState("");
+  const [masterNotice, setMasterNotice] = useState("");
+  const [masterTab, setMasterTab] = useState("overview");
+  const [detailUnitCnpj, setDetailUnitCnpj] = useState<string | null>(null);
+  const [editUnitCnpj, setEditUnitCnpj] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUnits(readRegisteredUnits());
+  }, []);
+
+  function persistUnits(nextUnits: RegisteredUnit[]) {
+    setUnits(nextUnits);
+    saveRegisteredUnits(nextUnits);
+  }
+
+  function updateUnitStatus(cnpj: string, status: RegisteredUnit["status"]) {
+    const nextUnits = units.map((unit) => (
+      unit.cnpj === cnpj ? { ...unit, status, updatedAt: new Date().toISOString() } : unit
+    ));
+    persistUnits(nextUnits);
+    setMasterNotice(status === "active" ? "Unidade aprovada e liberada para login." : status === "blocked" ? "Unidade bloqueada." : "Unidade voltou para pendente.");
+  }
+
+  function createUnitFromMaster(form: MasterUnitForm) {
+    const cnpj = normalizeCnpj(form.cnpj);
+
+    if (!form.unitName.trim() || !form.responsibleName.trim() || cnpj.length !== 14 || !form.email.trim() || !form.city.trim() || !form.state.trim()) {
+      return "Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.";
+    }
+
+    if (form.password.length < 6) {
+      return "A senha precisa ter pelo menos 6 caracteres.";
+    }
+
+    if (units.some((unit) => unit.cnpj === cnpj)) {
+      return "Este CNPJ já está cadastrado.";
+    }
+
+    const nextUnit: RegisteredUnit = {
+      unitName: form.unitName.trim(),
+      responsibleName: form.responsibleName.trim(),
+      cnpj,
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      city: form.city.trim(),
+      state: form.state.trim().toUpperCase(),
+      password: form.password,
+      status: "active",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    persistUnits([...units, nextUnit]);
+    setSelectedUnitCnpj(cnpj);
+    setMasterNotice("Unidade cadastrada e liberada para login.");
+    return "";
+  }
+
+  function updateUnitFromMaster(originalCnpj: string, form: MasterUnitForm) {
+    const cnpj = normalizeCnpj(form.cnpj);
+
+    if (!form.unitName.trim() || !form.responsibleName.trim() || cnpj.length !== 14 || !form.email.trim() || !form.city.trim() || !form.state.trim()) {
+      return "Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.";
+    }
+
+    if (form.password.length < 6) {
+      return "A senha precisa ter pelo menos 6 caracteres.";
+    }
+
+    if (units.some((unit) => unit.cnpj !== originalCnpj && unit.cnpj === cnpj)) {
+      return "Este CNPJ já está cadastrado em outra unidade.";
+    }
+
+    const nextUnits = units.map((unit) => unit.cnpj === originalCnpj ? {
+      ...unit,
+      unitName: form.unitName.trim(),
+      responsibleName: form.responsibleName.trim(),
+      cnpj,
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      city: form.city.trim(),
+      state: form.state.trim().toUpperCase(),
+      password: form.password,
+      updatedAt: new Date().toISOString()
+    } : unit);
+
+    persistUnits(nextUnits);
+    setSelectedUnitCnpj(cnpj);
+    setEditUnitCnpj(null);
+    setMasterNotice("Dados do franqueado atualizados.");
+    return "";
+  }
+
+  function resetUnitPassword(cnpj: string) {
+    const nextUnits = units.map((unit) => unit.cnpj === cnpj ? { ...unit, password: "123456", updatedAt: new Date().toISOString() } : unit);
+    persistUnits(nextUnits);
+    setMasterNotice("Senha resetada para 123456.");
+  }
+
+  function deleteUnit(cnpj: string) {
+    const unit = units.find((item) => item.cnpj === cnpj);
+    const confirmed = typeof window === "undefined" || window.confirm(`Excluir ${unit?.unitName ?? "esta unidade"}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    persistUnits(units.filter((item) => item.cnpj !== cnpj));
+    setSelectedUnitCnpj("");
+    setDetailUnitCnpj(null);
+    setEditUnitCnpj(null);
+    setMasterNotice("Franqueado excluído da visão master.");
+  }
+
+  const summaries = units.map(readMasterUnitSummary);
+  const selectedSummary = summaries.find((summary) => summary.unit.cnpj === selectedUnitCnpj) ?? summaries[0];
+  const activeUnits = units.filter((unit) => unit.status === "active");
+  const averageScore = summaries.length ? Math.round(summaries.reduce((sum, item) => sum + item.score, 0) / summaries.length) : 0;
+  const rois = summaries.map((item) => item.roi).filter((roi): roi is number => roi !== null);
+  const averageRoi = rois.length ? rois.reduce((sum, roi) => sum + roi, 0) / rois.length : null;
+  const criticalUnits = summaries.filter((item) => item.score < 40 || (item.roi !== null && item.roi < 1));
+  const pendingSummaries = summaries.filter((item) => item.unit.status === "pending");
+  const strongestUnit = [...summaries].sort((a, b) => b.score - a.score)[0];
+  const bestRoiUnit = [...summaries].filter((item) => item.roi !== null).sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0))[0];
+  const detailSummary = detailUnitCnpj ? summaries.find((summary) => summary.unit.cnpj === detailUnitCnpj) : undefined;
+  const editSummary = editUnitCnpj ? summaries.find((summary) => summary.unit.cnpj === editUnitCnpj) : undefined;
+
+  return (
+    <main className="min-h-screen text-ink">
+      <div className="mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-5 sm:px-6 md:flex-row lg:px-8">
+        <SideNavigation
+          title="Franqueadora"
+          subtitle={session.unitName ?? "Visao master"}
+          items={masterNavItems}
+          active={masterTab}
+          onChange={setMasterTab}
+          onLogout={onLogout}
+          badges={{ approvals: pendingSummaries.length }}
+        />
+
+        <div className="min-w-0 flex-1 pb-10">
+          <section className="overflow-hidden rounded-[34px] border border-white/80 bg-white/90 shadow-soft backdrop-blur">
+            <div className="grid gap-4 p-5 lg:grid-cols-[1.15fr_0.85fr]">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Visao master</p>
+                <h1 className="mt-1 text-2xl font-black text-ink">Progresso, campanhas e suporte da rede.</h1>
+                <p className="mt-2 text-sm font-bold text-slate-500">
+                  Acompanhe as unidades por area e abra detalhes sem misturar os controles.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <MiniMetric label="Pendentes" value={`${pendingSummaries.length}`} />
+                <MiniMetric label="Bloqueadas" value={`${units.filter((unit) => unit.status === "blocked").length}`} />
+                <MiniMetric label="Ativas" value={`${activeUnits.length}`} />
+                <MiniMetric label="Alertas" value={`${criticalUnits.length}`} />
+              </div>
+            </div>
+          </section>
+
+          {masterNotice ? (
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              {masterNotice}
+            </div>
+          ) : null}
+
+          {masterTab === "overview" ? (
+            <Screen key="master-overview">
+              <section className="mt-5 grid gap-3 md:grid-cols-4">
+                <MasterMetricTile label="Unidades" value={`${units.length}`} helper={`${activeUnits.length} ativas`} icon={Building2} color="#14B8A6" />
+                <MasterMetricTile label="Score medio" value={`${averageScore}%`} helper={strongestUnit ? `Melhor: ${strongestUnit.unit.unitName}` : "Sem unidades"} icon={Trophy} color="#FFC800" />
+                <MasterMetricTile label="ROI medio" value={formatMultiplier(averageRoi)} helper={bestRoiUnit ? `Melhor: ${bestRoiUnit.unit.unitName}` : "Sem campanhas"} icon={BarChart3} color="#1CB0F6" />
+                <MasterMetricTile label="Alertas" value={`${criticalUnits.length}`} helper="Score baixo ou ROI critico" icon={ShieldAlert} color="#EF4444" />
+              </section>
+
+              <section className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <MasterCampaigns summaries={summaries} />
+                <MasterRankings summaries={summaries} />
+              </section>
+            </Screen>
+          ) : null}
+
+          {masterTab === "approvals" ? (
+            <Screen key="master-approvals">
+              <MasterPendingApprovals
+                summaries={pendingSummaries}
+                onApprove={(cnpj) => updateUnitStatus(cnpj, "active")}
+                onBlock={(cnpj) => updateUnitStatus(cnpj, "blocked")}
+              />
+            </Screen>
+          ) : null}
+
+          {masterTab === "analytics" ? (
+            <Screen key="master-analytics">
+              <MasterAnalytics summaries={summaries} onOpenDetails={(cnpj) => setDetailUnitCnpj(cnpj)} />
+            </Screen>
+          ) : null}
+
+          {masterTab === "units" ? (
+            <Screen key="master-units">
+              <MasterUnitsSection
+                summaries={summaries}
+                selectedSummary={selectedSummary}
+                onSelect={setSelectedUnitCnpj}
+                onOpenDetails={(cnpj) => setDetailUnitCnpj(cnpj)}
+                onEdit={(cnpj) => setEditUnitCnpj(cnpj)}
+                onResetPassword={resetUnitPassword}
+                onDelete={deleteUnit}
+              />
+            </Screen>
+          ) : null}
+
+          {masterTab === "register" ? (
+            <Screen key="master-register">
+              <MasterRegisterUnit onCreate={createUnitFromMaster} />
+            </Screen>
+          ) : null}
+
+          {masterTab === "campaigns" ? (
+            <Screen key="master-campaigns">
+              <section className="mt-5">
+                <MasterCampaigns summaries={summaries} />
+              </section>
+            </Screen>
+          ) : null}
+
+          {masterTab === "correctives" ? (
+            <Screen key="master-correctives">
+              <MasterCorrectiveActions summaries={summaries} onOpenDetails={(cnpj) => setDetailUnitCnpj(cnpj)} />
+            </Screen>
+          ) : null}
+
+          {masterTab === "rankings" ? (
+            <Screen key="master-rankings">
+              <section className="mt-5">
+                <MasterRankings summaries={summaries} />
+              </section>
+            </Screen>
+          ) : null}
         </div>
       </div>
 
-      <BottomNavigation items={navItems} active={activeTab} onChange={setActiveTab} />
+      {detailSummary ? <UnitDetailModal summary={detailSummary} onClose={() => setDetailUnitCnpj(null)} /> : null}
+      {editSummary ? <EditUnitModal summary={editSummary} onClose={() => setEditUnitCnpj(null)} onSave={updateUnitFromMaster} /> : null}
     </main>
   );
+}
+
+function MasterMetricTile({ label, value, helper, icon: Icon, color }: { label: string; value: string; helper: string; icon: typeof BarChart3; color: string }) {
+  return (
+    <article className="rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">{label}</p>
+          <p className="mt-1 text-2xl font-black text-ink">{value}</p>
+        </div>
+        <div className="grid h-11 w-11 place-items-center rounded-2xl text-white shadow-sm" style={{ backgroundColor: color }}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <p className="mt-3 truncate text-xs font-bold text-slate-500">{helper}</p>
+    </article>
+  );
+}
+
+function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Buscar</span>
+      <div className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
+        <Search className="h-4 w-4 shrink-0 text-emerald-600" />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="h-full min-w-0 flex-1 bg-transparent text-sm font-black text-ink outline-none placeholder:text-slate-300"
+        />
+      </div>
+    </label>
+  );
+}
+
+function MasterRegisterUnit({ onCreate }: { onCreate: (form: MasterUnitForm) => string }) {
+  const [form, setForm] = useState<MasterUnitForm>({
+    unitName: "",
+    responsibleName: "",
+    cnpj: "",
+    email: "",
+    phone: "",
+    city: "",
+    state: "",
+    password: "123456"
+  });
+  const [message, setMessage] = useState("");
+
+  function update<K extends keyof MasterUnitForm>(field: K, value: MasterUnitForm[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const error = onCreate(form);
+
+    if (error) {
+      setMessage(error);
+      return;
+    }
+
+    setMessage("Unidade cadastrada e liberada para login.");
+    setForm({
+      unitName: "",
+      responsibleName: "",
+      cnpj: "",
+      email: "",
+      phone: "",
+      city: "",
+      state: "",
+      password: "123456"
+    });
+  }
+
+  return (
+    <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Cadastro master</p>
+          <h2 className="text-xl font-black text-ink">Cadastrar franqueado</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">Inclua uma unidade já liberada para acesso por CNPJ ou e-mail.</p>
+        </div>
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+          <PlusCircle className="h-6 w-6" />
+        </div>
+      </div>
+
+      {message ? (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+          {message}
+        </div>
+      ) : null}
+
+      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+        <AuthInput icon={Building2} label="Nome da unidade" value={form.unitName} onChange={(value) => update("unitName", value)} placeholder="Unidade Centro" />
+        <AuthInput icon={UserRound} label="Responsável" value={form.responsibleName} onChange={(value) => update("responsibleName", value)} placeholder="Nome do franqueado" />
+        <AuthInput icon={Building2} label="CNPJ" value={form.cnpj} onChange={(value) => update("cnpj", value)} placeholder="00.000.000/0000-00" />
+        <AuthInput icon={Mail} label="E-mail" value={form.email} onChange={(value) => update("email", value)} placeholder="unidade@email.com" />
+        <AuthInput icon={Phone} label="Telefone" value={form.phone} onChange={(value) => update("phone", value)} placeholder="(00) 00000-0000" />
+        <AuthInput icon={MapPin} label="Cidade" value={form.city} onChange={(value) => update("city", value)} placeholder="São Paulo" />
+        <AuthInput icon={MapPin} label="Estado" value={form.state} onChange={(value) => update("state", value)} placeholder="SP" />
+        <AuthInput icon={KeyRound} label="Senha inicial" type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="Mínimo 6 caracteres" />
+        <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2 sm:col-span-2">
+          <CheckCircle2 className="h-4 w-4" />
+          Cadastrar franqueado
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function MasterAnalytics({ summaries, onOpenDetails }: { summaries: MasterUnitSummary[]; onOpenDetails: (cnpj: string) => void }) {
+  const analytics = getMasterAnalytics(summaries);
+  const [search, setSearch] = useState("");
+  const filteredRows = analytics.unitRows.filter((row) => unitMatchesSearch(row.summary, search));
+
+  return (
+    <section className="mt-5 space-y-5">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MasterMetricTile
+          label="Melhor unidade"
+          value={analytics.bestUnit?.unit.unitName ?? "Sem dados"}
+          helper={analytics.bestUnit ? `${analytics.bestUnit.score}% no game` : "Cadastre unidades"}
+          icon={Trophy}
+          color="#FFC800"
+        />
+        <MasterMetricTile
+          label="Estado destaque"
+          value={analytics.bestState?.label ?? "Sem estado"}
+          helper={analytics.bestState ? `${analytics.bestState.average}% de score medio` : "Preencha estado"}
+          icon={MapPin}
+          color="#14B8A6"
+        />
+        <MasterMetricTile
+          label="Cidade destaque"
+          value={analytics.bestCity?.label ?? "Sem cidade"}
+          helper={analytics.bestCity ? `${analytics.bestCity.average}% de score medio` : "Preencha cidade"}
+          icon={Building2}
+          color="#1CB0F6"
+        />
+        <MasterMetricTile
+          label="Melhor plataforma"
+          value={analytics.bestPlatform?.label ?? "Sem campanhas"}
+          helper={analytics.bestPlatform ? `${formatMultiplier(analytics.bestPlatform.averageRoi)} de ROI medio` : "Preencha ROI"}
+          icon={PieChart}
+          color="#8B5CF6"
+        />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <div className="grid gap-3 lg:grid-cols-[1fr_300px] lg:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-400">Performance por unidade</p>
+              <h2 className="text-xl font-black text-ink">Quem está performando melhor</h2>
+            </div>
+            <SearchBox value={search} onChange={setSearch} placeholder="Buscar franqueado..." />
+          </div>
+          <div className="mt-4 grid gap-3">
+            {filteredRows.length ? (
+              filteredRows.map((row, index) => (
+                <button
+                  key={row.summary.unit.cnpj}
+                  type="button"
+                  onClick={() => onOpenDetails(row.summary.unit.cnpj)}
+                  className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-emerald-700">#{index + 1}</p>
+                      <p className="truncate font-black text-ink">{row.summary.unit.unitName}</p>
+                      <p className="truncate text-xs font-bold text-slate-500">{formatLocation(row.summary.unit)}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{row.performance}%</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <MiniMetric label="Score" value={`${row.summary.score}%`} />
+                    <MiniMetric label="ROI" value={formatMultiplier(row.summary.roi)} />
+                    <MiniMetric label="XP" value={`${row.summary.xp}`} />
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">Nenhuma unidade cadastrada ainda.</div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Plataformas de campanha</p>
+          <h2 className="text-xl font-black text-ink">ROI medio por plataforma</h2>
+          <div className="mt-4 grid gap-3">
+            {analytics.platformRows.length ? (
+              analytics.platformRows.map((platform) => (
+                <div key={platform.label} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black text-ink">{platform.label}</p>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">{formatMultiplier(platform.averageRoi)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <ProgressBar value={Math.min(100, Math.round((platform.averageRoi / 6) * 100))} color="#14B8A6" label={`${platform.count} campanha(s)`} compact />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">Nenhuma campanha com ROI preenchido ainda.</div>
+            )}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function MasterCorrectiveActions({ summaries, onOpenDetails }: { summaries: MasterUnitSummary[]; onOpenDetails: (cnpj: string) => void }) {
+  const [search, setSearch] = useState("");
+  const filteredSummaries = summaries.filter((summary) => unitMatchesSearch(summary, search));
+  const criticalSummaries = summaries.filter((summary) => summary.score < 50 || (summary.roi !== null && summary.roi < 2));
+  const mainActions = getNetworkCorrectiveActions(summaries);
+
+  return (
+    <section className="mt-5 space-y-5">
+      <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Ações corretivas</p>
+            <h2 className="text-xl font-black text-ink">Plano geral da rede</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Prioridades calculadas a partir do progresso, ROI e funil das unidades.</p>
+          </div>
+          <XPBadge xp={criticalSummaries.length} label="alertas" tone="gold" />
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {mainActions.map((action) => (
+            <article key={action.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-black text-ink">{action.title}</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">{action.reason}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {action.steps.map((step) => (
+                  <span key={step} className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">{step}</span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="grid gap-3 lg:grid-cols-[1fr_340px] lg:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Busca individual</p>
+            <h2 className="text-xl font-black text-ink">Ação corretiva por franqueado</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Pesquise a unidade e veja o próximo movimento recomendado.</p>
+          </div>
+          <SearchBox value={search} onChange={setSearch} placeholder="Buscar franqueado, cidade, CNPJ..." />
+        </div>
+
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          {filteredSummaries.length ? (
+            filteredSummaries.map((summary) => {
+              const actions = getUnitCorrectiveActions(summary);
+              return (
+                <article key={summary.unit.cnpj} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-ink">{summary.unit.unitName}</p>
+                      <p className="text-xs font-bold text-slate-500">{formatLocation(summary.unit)} - {formatCnpj(summary.unit.cnpj)}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{summary.score}%</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <MiniMetric label="Score" value={`${summary.score}%`} />
+                    <MiniMetric label="ROI" value={formatMultiplier(summary.roi)} />
+                    <MiniMetric label="XP" value={`${summary.xp}`} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {actions.map((action) => (
+                      <span key={action} className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">{action}</span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(summary.unit.cnpj)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver detalhes
+                  </button>
+                </article>
+              );
+            })
+          ) : (
+            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">Nenhum franqueado encontrado.</div>
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function MasterUnitsSection({
+  summaries,
+  selectedSummary,
+  onSelect,
+  onOpenDetails,
+  onEdit,
+  onResetPassword,
+  onDelete
+}: {
+  summaries: MasterUnitSummary[];
+  selectedSummary?: MasterUnitSummary;
+  onSelect: (cnpj: string) => void;
+  onOpenDetails: (cnpj: string) => void;
+  onEdit: (cnpj: string) => void;
+  onResetPassword: (cnpj: string) => void;
+  onDelete: (cnpj: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredSummaries = summaries.filter((summary) => unitMatchesSearch(summary, search));
+
+  return (
+    <section className="mt-5">
+      <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_320px] lg:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Controle da rede</p>
+            <h2 className="text-xl font-black text-ink">Unidades da franquia</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Busque, edite, resete senha, exclua ou abra os detalhes do franqueado.</p>
+          </div>
+          <SearchBox value={search} onChange={setSearch} placeholder="Buscar por nome, CNPJ, cidade..." />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          {filteredSummaries.length ? (
+            filteredSummaries.map((summary) => {
+              const selected = selectedSummary?.unit.cnpj === summary.unit.cnpj;
+
+              return (
+                <article
+                  key={summary.unit.cnpj}
+                  className={`rounded-3xl border p-4 text-left transition ${
+                    selected ? "border-emerald-300 bg-emerald-50 shadow-sm" : "border-slate-200 bg-slate-50 hover:bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-ink">{summary.unit.unitName}</p>
+                      <p className="truncate text-xs font-bold text-slate-500">{summary.unit.responsibleName} - {formatCnpj(summary.unit.cnpj)}</p>
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-slate-500">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {formatLocation(summary.unit)}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${getUnitStatusClass(summary.unit.status)}`}>
+                      {getUnitStatusLabel(summary.unit.status)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <MiniMetric label="Score" value={`${summary.score}%`} />
+                    <MiniMetric label="XP" value={`${summary.xp}`} />
+                    <MiniMetric label="ROI" value={formatMultiplier(summary.roi)} />
+                  </div>
+                  <div className="mt-3">
+                    <ProgressBar value={summary.score} color="#14B8A6" label="Progresso no game" compact />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(summary.unit.cnpj)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Selecionar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenDetails(summary.unit.cnpj)}
+                      className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Ver detalhes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(summary.unit.cnpj)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onResetPassword(summary.unit.cnpj)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Resetar senha
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(summary.unit.cnpj)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 shadow-sm"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </button>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">
+              Nenhuma unidade encontrada.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MasterPendingApprovals({
+  summaries,
+  onApprove,
+  onBlock
+}: {
+  summaries: MasterUnitSummary[];
+  onApprove: (cnpj: string) => void;
+  onBlock: (cnpj: string) => void;
+}) {
+  return (
+    <section className="mt-5 rounded-[32px] border border-amber-100 bg-amber-50/90 p-5 shadow-soft backdrop-blur">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-amber-700">Cadastros pendentes</p>
+          <h2 className="text-xl font-black text-ink">Aprovar novas unidades</h2>
+          <p className="mt-1 text-sm font-bold text-amber-900">Unidades cadastradas pelo acesso de franqueado aguardam liberacao da franqueadora.</p>
+        </div>
+        <XPBadge xp={summaries.length} label="pendentes" tone="gold" />
+      </div>
+
+      <div className="grid gap-3">
+        {summaries.length ? (
+          summaries.map((summary) => (
+            <div key={summary.unit.cnpj} className="grid gap-3 rounded-3xl border border-amber-200 bg-white p-4 lg:grid-cols-[1.1fr_0.8fr_0.9fr]">
+              <div>
+                <p className="font-black text-ink">{summary.unit.unitName}</p>
+                <p className="text-xs font-bold text-slate-500">{summary.unit.responsibleName}</p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-slate-400">CNPJ</p>
+                <p className="text-sm font-black text-slate-700">{formatCnpj(summary.unit.cnpj)}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <button type="button" onClick={() => onApprove(summary.unit.cnpj)} className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  Aprovar
+                </button>
+                <button type="button" onClick={() => onBlock(summary.unit.cnpj)} className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-red-600 bg-red-500 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+                  <Ban className="h-4 w-4" />
+                  Bloquear
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-3xl bg-white p-4 text-sm font-bold text-slate-500">Nenhum cadastro pendente no momento.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MasterRankings({ summaries }: { summaries: MasterUnitSummary[] }) {
+  const byScore = [...summaries].sort((a, b) => b.score - a.score).slice(0, 4);
+  const byRoi = [...summaries].filter((summary) => summary.roi !== null).sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0)).slice(0, 4);
+
+  return (
+    <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-400">Comparativos</p>
+      <h2 className="text-xl font-black text-ink">Ranking da rede</h2>
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <RankingList title="Melhor progresso no game" items={byScore} value={(item) => `${item.score}%`} empty="Sem unidades cadastradas" />
+        <RankingList title="Melhor ROI de campanha" items={byRoi} value={(item) => formatMultiplier(item.roi)} empty="Sem campanhas preenchidas" />
+      </div>
+    </section>
+  );
+}
+
+function RankingList({ title, items, value, empty }: { title: string; items: MasterUnitSummary[]; value: (item: MasterUnitSummary) => string; empty: string }) {
+  return (
+    <div className="rounded-3xl bg-slate-50 p-4">
+      <h3 className="text-sm font-black text-ink">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {items.length ? (
+          items.map((item, index) => (
+            <div key={item.unit.cnpj} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
+              <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-50 text-xs font-black text-emerald-700">{index + 1}</div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-ink">{item.unit.unitName}</p>
+                <p className="text-xs font-bold text-slate-500">{item.levelName}</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{value(item)}</span>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-2xl bg-white p-3 text-xs font-bold text-slate-500">{empty}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getUnitStatusLabel(status: RegisteredUnit["status"]) {
+  if (status === "active") {
+    return "Ativa";
+  }
+
+  if (status === "blocked") {
+    return "Bloqueada";
+  }
+
+  return "Pendente";
+}
+
+function getUnitStatusClass(status: RegisteredUnit["status"]) {
+  if (status === "active") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+
+  if (status === "blocked") {
+    return "bg-red-100 text-red-700";
+  }
+
+  return "bg-amber-100 text-amber-700";
+}
+
+function MasterCampaigns({ summaries }: { summaries: MasterUnitSummary[] }) {
+  const [search, setSearch] = useState("");
+  const rows = summaries
+    .flatMap((summary) => {
+      const records = summary.campaignRecords.length ? summary.campaignRecords : [{
+        ...summary.campaignRoi,
+        id: `${summary.unit.cnpj}-roi`,
+        cidade: summary.unit.city ?? "",
+        createdAt: new Date().toISOString()
+      }];
+
+      return records.map((campaign) => {
+        const metrics = calculateInputMetrics(campaign);
+        const hasCampaignData =
+          campaign.investimento > 0 ||
+          campaign.receita > 0 ||
+          campaign.leads > 0 ||
+          campaign.vendas > 0 ||
+          campaign.nomeCampanha.trim().length > 0;
+
+        return { summary, campaign, metrics, hasCampaignData, status: getRoasStatus(metrics.roas) };
+      });
+    })
+    .filter((row) => row.hasCampaignData)
+    .filter((row) => {
+      const term = normalizeSearch(search);
+      if (!term) {
+        return true;
+      }
+
+      return normalizeSearch([
+        row.summary.unit.unitName,
+        row.summary.unit.responsibleName,
+        row.campaign.nomeCampanha,
+        row.campaign.canalCampanha,
+        row.campaign.cidade,
+        row.summary.unit.city,
+        row.summary.unit.state
+      ].filter(Boolean).join(" ")).includes(term);
+    });
+
+  return (
+    <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+      <div className="grid gap-3 lg:grid-cols-[1fr_320px] lg:items-end">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Campanhas mês a mês</p>
+          <h2 className="text-xl font-black text-ink">Retorno por franqueado</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">Mostra apenas campanhas preenchidas pelos franqueados.</p>
+        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar campanha, plataforma..." />
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {rows.length ? (
+          rows.map((row) => (
+            <div key={`${row.summary.unit.cnpj}-${row.campaign.id}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-ink">{row.campaign.nomeCampanha.trim() || "Campanha sem nome"}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.summary.unit.unitName} - {row.campaign.canalCampanha} - {row.campaign.cidade || formatLocation(row.summary.unit)}</p>
+                </div>
+                <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: row.status.color }}>
+                  {row.status.label}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <MiniMetric label="Invest." value={formatCurrency(row.campaign.investimento)} />
+                <MiniMetric label="Receita" value={formatCurrency(row.metrics.receita)} />
+                <MiniMetric label="ROI" value={formatMultiplier(row.metrics.roas)} />
+                <MiniMetric label="CPV" value={formatCurrency(row.metrics.cpv)} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">
+            Nenhuma campanha encontrada.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
+  const campaignMetrics = calculateInputMetrics(summary.campaignRoi);
+  const campaignStatus = getRoasStatus(campaignMetrics.roas);
+  const actions = getRoasDiagnosis(summary.campaignRoi, campaignMetrics);
+
+  return (
+    <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Detalhe da unidade</p>
+          <h2 className="text-2xl font-black text-ink">{summary.unit.unitName}</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">{summary.unit.responsibleName} - {formatCnpj(summary.unit.cnpj)}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-3 py-1 text-xs font-black uppercase ${getUnitStatusClass(summary.unit.status)}`}>
+            {getUnitStatusLabel(summary.unit.status)}
+          </span>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-700">{summary.levelName}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MiniMetric label="Score" value={`${summary.score}%`} />
+        <MiniMetric label="XP" value={`${summary.xp}`} />
+        <MiniMetric label="Metas" value={`${summary.completedMissions}/${summary.totalMissions}`} />
+        <MiniMetric label="ROI" value={formatMultiplier(summary.roi)} />
+      </div>
+
+      <div className="mt-5 rounded-3xl bg-slate-50 p-4">
+        <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Progresso no game</p>
+        <div className="space-y-3">
+          {summary.blockProgress.map((block) => (
+            <ProgressBar key={block.id} value={block.percent} color={block.color} label={block.label} compact />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">ROI de campanha</p>
+            <h3 className="text-lg font-black text-ink">{summary.campaignRoi.nomeCampanha.trim() || "Campanha nao preenchida"}</h3>
+            <p className="text-xs font-bold text-slate-500">{summary.campaignRoi.canalCampanha}</p>
+          </div>
+          <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: campaignStatus.color }}>
+            {campaignStatus.label}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <MiniMetric label="ROI" value={formatMultiplier(campaignMetrics.roas)} />
+          <MiniMetric label="CPL" value={formatCurrency(campaignMetrics.cpl)} />
+          <MiniMetric label="CPA agenda" value={formatCurrency(campaignMetrics.cpa)} />
+          <MiniMetric label="Taxa venda" value={formatPercent(campaignMetrics.taxaVenda)} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {actions.map((action) => (
+            <span key={action} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{action}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-3xl bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Canais comerciais</p>
+          <div className="grid gap-2">
+            {captureChannels.map((channel) => {
+              const input = summary.channels?.[channel.id];
+              const metrics = input ? calculateInputMetrics(input) : null;
+              return (
+                <div key={channel.id} className="rounded-2xl bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-black text-ink">{channel.name}</p>
+                    <span className="text-xs font-black text-slate-500">{metrics ? formatMultiplier(metrics.roas) : "dados insuficientes"}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    <MiniMetric label="Leads" value={`${input?.leads ?? 0}`} />
+                    <MiniMetric label="Agendas" value={`${input?.agendamentos ?? 0}`} />
+                    <MiniMetric label="Vendas" value={`${input?.vendas ?? 0}`} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-3xl bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Plano e historico</p>
+          <div className="rounded-2xl bg-white p-3 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Prioridade atual</p>
+            <p className="mt-1 text-sm font-black text-ink">{summary.weeklyPlan?.priority || "Sem prioridade preenchida"}</p>
+            <p className="mt-2 text-xs font-bold text-slate-500">{summary.weeklyPlan?.correctiveAction || "Sem acao corretiva registrada"}</p>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {summary.history.length ? (
+              summary.history.slice(0, 3).map((entry) => (
+                <div key={entry.id ?? entry.date} className="rounded-2xl bg-white p-3 text-xs font-bold text-slate-600 shadow-sm">
+                  <span className="font-black text-ink">{entry.date}</span> - {entry.bottleneck} / {entry.action}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-white p-3 text-xs font-bold text-slate-500 shadow-sm">Sem fechamento semanal ainda.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function UnitDetailModal({ summary, onClose }: { summary: MasterUnitSummary; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-5xl">
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-white/20 bg-white text-slate-700 shadow-soft"
+            aria-label="Fechar detalhes"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <MasterUnitDetail summary={summary} />
+      </div>
+    </div>
+  );
+}
+
+function EditUnitModal({
+  summary,
+  onClose,
+  onSave
+}: {
+  summary: MasterUnitSummary;
+  onClose: () => void;
+  onSave: (originalCnpj: string, form: MasterUnitForm) => string;
+}) {
+  const [form, setForm] = useState<MasterUnitForm>({
+    unitName: summary.unit.unitName,
+    responsibleName: summary.unit.responsibleName,
+    cnpj: summary.unit.cnpj,
+    email: summary.unit.email,
+    phone: summary.unit.phone,
+    city: summary.unit.city ?? "",
+    state: summary.unit.state ?? "",
+    password: summary.unit.password
+  });
+  const [message, setMessage] = useState("");
+
+  function update<K extends keyof MasterUnitForm>(field: K, value: MasterUnitForm[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const error = onSave(summary.unit.cnpj, form);
+    if (error) {
+      setMessage(error);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-[30px] border border-slate-200 bg-white p-5 shadow-soft">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Editar franqueado</p>
+            <h2 className="text-xl font-black text-ink">{summary.unit.unitName}</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Atualize os dados usados no login e na visão master.</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-slate-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {message ? (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            {message}
+          </div>
+        ) : null}
+
+        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+          <AuthInput icon={Building2} label="Nome da unidade" value={form.unitName} onChange={(value) => update("unitName", value)} placeholder="Unidade Centro" />
+          <AuthInput icon={UserRound} label="Responsável" value={form.responsibleName} onChange={(value) => update("responsibleName", value)} placeholder="Nome do franqueado" />
+          <AuthInput icon={Building2} label="CNPJ" value={form.cnpj} onChange={(value) => update("cnpj", value)} placeholder="00.000.000/0000-00" />
+          <AuthInput icon={Mail} label="E-mail" value={form.email} onChange={(value) => update("email", value)} placeholder="unidade@email.com" />
+          <AuthInput icon={Phone} label="Telefone" value={form.phone} onChange={(value) => update("phone", value)} placeholder="(00) 00000-0000" />
+          <AuthInput icon={MapPin} label="Cidade" value={form.city} onChange={(value) => update("city", value)} placeholder="São Paulo" />
+          <AuthInput icon={MapPin} label="Estado" value={form.state} onChange={(value) => update("state", value)} placeholder="SP" />
+          <AuthInput icon={KeyRound} label="Senha" type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="Mínimo 6 caracteres" />
+          <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2 sm:col-span-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Salvar alterações
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function formatLocation(unit: RegisteredUnit) {
+  const city = unit.city?.trim();
+  const state = unit.state?.trim();
+
+  if (city && state) {
+    return `${city} - ${state}`;
+  }
+
+  return city || state || "Localizacao nao informada";
+}
+
+function getMasterAnalytics(summaries: MasterUnitSummary[]) {
+  const unitRows = summaries
+    .map((summary) => {
+      const roiScore = summary.roi !== null ? Math.min(100, Math.round((summary.roi / 6) * 100)) : 0;
+      const performance = Math.round(summary.score * 0.65 + roiScore * 0.35);
+
+      return { summary, performance };
+    })
+    .sort((a, b) => b.performance - a.performance);
+
+  const bestUnit = unitRows[0]?.summary;
+  const bestState = getBestLocationGroup(summaries, (summary) => summary.unit.state?.trim().toUpperCase());
+  const bestCity = getBestLocationGroup(summaries, (summary) => {
+    const city = summary.unit.city?.trim();
+    const state = summary.unit.state?.trim().toUpperCase();
+    return city && state ? `${city} - ${state}` : city;
+  });
+  const platformRows = getPlatformRows(summaries);
+  const bestPlatform = platformRows[0];
+
+  return { unitRows, bestUnit, bestState, bestCity, platformRows, bestPlatform };
+}
+
+function getBestLocationGroup(summaries: MasterUnitSummary[], getLabel: (summary: MasterUnitSummary) => string | undefined) {
+  const groups = new Map<string, { label: string; total: number; count: number }>();
+
+  summaries.forEach((summary) => {
+    const label = getLabel(summary);
+    if (!label) {
+      return;
+    }
+
+    const current = groups.get(label) ?? { label, total: 0, count: 0 };
+    current.total += summary.score;
+    current.count += 1;
+    groups.set(label, current);
+  });
+
+  return Array.from(groups.values())
+    .map((group) => ({ ...group, average: Math.round(group.total / group.count) }))
+    .sort((a, b) => b.average - a.average)[0];
+}
+
+function getPlatformRows(summaries: MasterUnitSummary[]) {
+  const groups = new Map<string, { label: string; totalRoi: number; count: number }>();
+
+  summaries.forEach((summary) => {
+    const campaigns = summary.campaignRecords.length ? summary.campaignRecords : [summary.campaignRoi];
+    campaigns.forEach((campaign) => {
+      const metrics = calculateInputMetrics(campaign);
+      if (metrics.roas === null) {
+        return;
+      }
+
+      const label = campaign.canalCampanha || "Outro";
+      const current = groups.get(label) ?? { label, totalRoi: 0, count: 0 };
+      current.totalRoi += metrics.roas;
+      current.count += 1;
+      groups.set(label, current);
+    });
+  });
+
+  return Array.from(groups.values())
+    .map((group) => ({ ...group, averageRoi: group.totalRoi / group.count }))
+    .sort((a, b) => b.averageRoi - a.averageRoi);
+}
+
+function getUnitCorrectiveActions(summary: MasterUnitSummary) {
+  const metrics = calculateInputMetrics(summary.campaignRoi);
+
+  if (metrics.roas !== null && metrics.roas < 2) {
+    return getRoasDiagnosis(summary.campaignRoi, metrics).slice(0, 5);
+  }
+
+  const weakestBlock = [...summary.blockProgress].sort((a, b) => a.percent - b.percent)[0];
+
+  if (!weakestBlock || weakestBlock.percent >= 70) {
+    return ["manter acompanhamento", "aumentar investimento com cuidado", "monitorar qualidade dos leads", "manter rotina comercial"];
+  }
+
+  if (weakestBlock.id === "passivo-frio") {
+    return ["revisar campanhas", "testar criativos", "validar público", "acompanhar CPL", "melhorar qualificação"];
+  }
+
+  if (weakestBlock.id === "passivo-quente") {
+    return ["melhorar nutrição", "criar lembretes", "reativar contatos", "reduzir tempo de resposta"];
+  }
+
+  if (weakestBlock.id === "ativo-frio") {
+    return ["organizar prospecção", "definir lista foco", "melhorar abordagem", "medir respostas"];
+  }
+
+  if (weakestBlock.id === "ativo-quente") {
+    return ["treinar fechamento", "mapear objeções", "melhorar proposta", "acompanhar follow-up"];
+  }
+
+  return ["revisar indicadores", "definir prioridade da semana", "acompanhar execução", "fechar ciclo semanal"];
+}
+
+function getNetworkCorrectiveActions(summaries: MasterUnitSummary[]) {
+  const lowRoiCount = summaries.filter((summary) => summary.roi !== null && summary.roi < 2).length;
+  const lowScoreCount = summaries.filter((summary) => summary.score < 50).length;
+  const noCampaignCount = summaries.filter((summary) => summary.roi === null).length;
+  const platformRows = getPlatformRows(summaries);
+  const weakestPlatform = [...platformRows].reverse()[0];
+
+  return [
+    {
+      title: "Campanhas com ROI baixo",
+      reason: lowRoiCount ? `${lowRoiCount} unidade(s) precisam revisar retorno de campanha.` : "ROI da rede sem alerta crítico no momento.",
+      steps: ["revisar público", "revisar criativo", "validar promessa", "monitorar CPV"]
+    },
+    {
+      title: "Unidades com pouco progresso",
+      reason: lowScoreCount ? `${lowScoreCount} unidade(s) abaixo de 50% no game.` : "Progresso geral dentro do esperado.",
+      steps: ["definir meta semanal", "acompanhar rotina", "priorizar gargalo", "fechar ciclo"]
+    },
+    {
+      title: "Dados de campanha pendentes",
+      reason: noCampaignCount ? `${noCampaignCount} unidade(s) ainda sem ROI preenchido.` : "Todas as unidades com ROI preenchido.",
+      steps: ["cobrar preenchimento", "validar investimento", "registrar receita", "comparar canais"]
+    },
+    {
+      title: "Plataforma com menor retorno",
+      reason: weakestPlatform ? `${weakestPlatform.label} está com ${formatMultiplier(weakestPlatform.averageRoi)} de ROI médio.` : "Sem campanhas suficientes para comparar plataformas.",
+      steps: ["comparar plataforma", "revisar segmentação", "testar nova campanha", "acompanhar qualidade"]
+    }
+  ];
+}
+
+function readMasterUnitSummary(unit: RegisteredUnit): MasterUnitSummary {
+  const progressKey = getLocalUnitStorageKey(unit.cnpj, "gameProgress", "v2");
+  const commercialKey = getLocalUnitStorageKey(unit.cnpj, "commercialInputs", "v2");
+  const selfManagementKey = getLocalUnitStorageKey(unit.cnpj, "selfManagement", "v1");
+  const progress = readJson<{ completedMissions?: string[]; appliedSolutions?: string[] }>(progressKey);
+  const commercial = readJson<CommercialProfileSnapshot>(commercialKey);
+  const selfManagement = readJson<SelfManagementSnapshot>(selfManagementKey);
+  const completedMissions = Array.isArray(progress?.completedMissions) ? progress.completedMissions : [];
+  const appliedSolutions = Array.isArray(progress?.appliedSolutions) ? progress.appliedSolutions : [];
+  const completedSet = new Set(completedMissions);
+
+  const blockProgress = journeyBlocks.map((block) => {
+    const blockMissions = missions.filter((mission) => mission.blockId === block.id);
+    const completed = blockMissions.filter((mission) => completedSet.has(mission.id)).length;
+    return {
+      id: block.id,
+      label: block.name.replace("Pilar 1: ", "").replace("Pilar 3: ", ""),
+      percent: blockMissions.length ? Math.round((completed / blockMissions.length) * 100) : 0,
+      color: block.accent
+    };
+  });
+  const score = blockProgress.length ? Math.round(blockProgress.reduce((sum, block) => sum + block.percent, 0) / blockProgress.length) : 0;
+  const missionXp = missions.filter((mission) => completedSet.has(mission.id)).reduce((sum, mission) => sum + mission.xp, 0);
+  const solutionXp = problems.reduce((sum, problem) => {
+    const appliedCount = problem.actions.filter((action) => appliedSolutions.includes(`${problem.id}:${action}`)).length;
+    return sum + appliedCount * problem.xp;
+  }, 0);
+  const roiInput = commercial?.campaignRoi ?? defaultCampaignRoiSnapshot();
+  const roi = calculateInputMetrics(roiInput).roas;
+  const levelName = ([...levels].reverse().find((level) => score >= level.minPercent) ?? levels[0]).name;
+  const history = Array.isArray(selfManagement?.history) ? selfManagement.history : [];
+
+  return {
+    unit,
+    score,
+    xp: missionXp + solutionXp,
+    roi,
+    levelName,
+    completedMissions: completedMissions.length,
+    totalMissions: missions.length,
+    blockProgress,
+    channels: commercial?.channels,
+    campaignRoi: roiInput,
+    campaignRecords: Array.isArray(commercial?.campaignRecords) ? commercial.campaignRecords : [],
+    weeklyPlan: selfManagement?.weeklyPlan,
+    history,
+    lastActivity: history[0]?.date ?? new Date(unit.createdAt).toLocaleDateString("pt-BR"),
+    firebasePaths: [
+      getFirebaseUnitPath(unit.cnpj, "gameProgress"),
+      getFirebaseUnitPath(unit.cnpj, "commercialInputs"),
+      getFirebaseUnitPath(unit.cnpj, "selfManagement")
+    ]
+  };
+}
+
+type CommercialProfileSnapshot = {
+  channels?: CommercialInputs;
+  campaignRoi?: ChannelInput;
+  campaignRecords?: CampaignRecord[];
+};
+
+type SelfManagementSnapshot = {
+  weeklyPlan?: WeeklyPlan;
+  history?: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
+};
+
+function defaultCampaignRoiSnapshot(): ChannelInput {
+  return {
+    nomeCampanha: "",
+    canalCampanha: "Meta Ads",
+    investimento: 0,
+    receita: 0,
+    ticketMedio: 0,
+    leads: 0,
+    interacoes: 0,
+    agendamentos: 0,
+    comparecimentos: 0,
+    vendas: 0,
+    indicacoes: 0
+  };
+}
+
+function readJson<T>(storageKey: string): T | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
 }
 
 function Screen({ children }: { children: React.ReactNode }) {
   return <div className="animate-[fadeIn_160ms_ease-out]">{children}</div>;
 }
 
-function DesktopNavigation({ active, onChange }: { active: string; onChange: (id: string) => void }) {
-  return (
-    <nav className="mb-5 hidden rounded-[28px] border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur md:block">
-      <div className="grid grid-cols-4 gap-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onChange(item.id)}
-              className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-black transition ${
-                isActive
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-700 shadow-press"
-                  : "border-transparent bg-white text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
 function GuidanceCard({ title, text, icon: Icon }: { title: string; text: string; icon: typeof BarChart3 }) {
   return (
-    <article className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-sm backdrop-blur">
       <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-limepop text-emerald-700">
         <Icon className="h-6 w-6" />
       </div>
@@ -652,7 +2604,7 @@ function WeeklyPlanCard({
   onUpdate: <K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) => void;
 }) {
   return (
-    <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-center gap-3">
         <div className="grid h-12 w-12 place-items-center rounded-2xl bg-skyjoy text-white">
           <NotepadText className="h-6 w-6" />
@@ -741,7 +2693,7 @@ function DailyChecklistCard({
   onToggle: (item: string) => void;
 }) {
   return (
-    <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Checklist diario</p>
@@ -788,7 +2740,7 @@ function HistoryCard({
   onCloseWeek: (entry: { score: number; xp: number; bottleneck: string; action: string }) => void;
 }) {
   return (
-    <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Historico simples</p>
@@ -884,7 +2836,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
   return (
     <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
         <div className="mb-4 flex items-center gap-3">
           <div className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ backgroundColor: channel.accent }}>
             <ChannelIcon className="h-6 w-6" />
@@ -899,7 +2851,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
           <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referencia</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">Use como guia do metodo. Os numeros reais ficam na aba Metricas, em Dados da unidade.</p>
           <div className="mb-4 flex flex-wrap gap-2">
@@ -917,7 +2869,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
         </div>
 
         {channel.formulas ? (
-          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
           <h2 className="mb-1 text-xl font-black text-ink">Formulas do metodo</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">As formulas calculam os dados reais preenchidos na area Dados da unidade.</p>
             <div className="space-y-2">
@@ -931,7 +2883,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
         ) : null}
 
         {channel.channels ? (
-          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
           <h2 className="mb-1 text-xl font-black text-ink">Canais possiveis</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">Lista de opcoes do metodo, nao canais ja executados pela unidade.</p>
             <div className="flex flex-wrap gap-2">
@@ -955,7 +2907,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
           </div>
         ) : null}
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
           <h2 className="mb-1 text-xl font-black text-ink">Intervencoes recomendadas</h2>
           <p className="mb-3 text-xs font-bold text-slate-500">Acoes sugeridas quando a metrica real indicar gargalo.</p>
           <div className="space-y-3">
@@ -1010,7 +2962,7 @@ function CommercialDataPanel({
   onUpdate: <K extends keyof ChannelInput>(channelId: BlockId, field: K, value: ChannelInput[K]) => void;
 }) {
   return (
-    <section className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Dados da unidade</p>
@@ -1186,6 +3138,161 @@ function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calcul
   return ["preencher dados reais da campanha", "validar investimento e receita", "acompanhar leads, agenda, comparecimento e vendas"];
 }
 
+function createEmptyCampaignRecord(city = ""): Omit<CampaignRecord, "id" | "createdAt"> {
+  return {
+    ...defaultCampaignRoiSnapshot(),
+    cidade: city
+  };
+}
+
+function getCampaignXp(input: ChannelInput) {
+  const metrics = calculateInputMetrics(input);
+  const filledFields = [
+    input.nomeCampanha.trim(),
+    input.canalCampanha,
+    input.investimento,
+    input.leads,
+    input.agendamentos,
+    input.comparecimentos,
+    input.vendas,
+    input.ticketMedio || input.receita
+  ].filter(Boolean).length;
+  const baseXp = Math.min(80, filledFields * 10);
+  const roasXp = metrics.roas === null ? 0 : getRoasStatus(metrics.roas).xp;
+
+  return baseXp + Math.max(0, roasXp);
+}
+
+function CampaignLog({
+  unitCity,
+  records,
+  onAdd,
+  onRemove
+}: {
+  unitCity: string;
+  records: CampaignRecord[];
+  onAdd: (record: Omit<CampaignRecord, "id" | "createdAt">) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [form, setForm] = useState<Omit<CampaignRecord, "id" | "createdAt">>(() => createEmptyCampaignRecord(unitCity));
+  const metrics = calculateInputMetrics(form);
+  const status = getRoasStatus(metrics.roas);
+  const campaignXp = getCampaignXp(form);
+
+  function update<K extends keyof Omit<CampaignRecord, "id" | "createdAt">>(field: K, value: Omit<CampaignRecord, "id" | "createdAt">[K]) {
+    setForm((current) => ({
+      ...current,
+      [field]: typeof value === "number" ? (Number.isFinite(value) ? value : 0) : value
+    }));
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onAdd(form);
+    setForm(createEmptyCampaignRecord(unitCity));
+  }
+
+  return (
+    <section className="space-y-5">
+      <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-emerald-600 text-white shadow-sm">
+              <Calculator className="h-8 w-8" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Missão de campanhas</p>
+              <h1 className="text-2xl font-black text-ink">Registre campanhas reais e ganhe XP.</h1>
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                Informe plataforma, cidade e resultado para alimentar a visão master da franqueadora.
+              </p>
+            </div>
+          </div>
+          <XPBadge xp={campaignXp} label="XP possível" tone="gold" />
+        </div>
+      </section>
+
+      <form onSubmit={submit} className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField label="Nome da campanha" value={form.nomeCampanha} placeholder="Ex: Captação Meta Ads" onChange={(value) => update("nomeCampanha", value)} />
+          <CampaignChannelField value={form.canalCampanha} onChange={(value) => update("canalCampanha", value)} />
+          <TextField label="Cidade da campanha" value={form.cidade} placeholder="Ex: São Paulo" onChange={(value) => update("cidade", value)} />
+          <NumberField fieldKey="campaign-log-investimento" label="Investimento em mídia" value={form.investimento} onChange={(value) => update("investimento", value)} />
+          <NumberField fieldKey="campaign-log-leads" label="Leads gerados" value={form.leads} onChange={(value) => update("leads", value)} />
+          <NumberField fieldKey="campaign-log-agendamentos" label="Agendamentos" value={form.agendamentos} onChange={(value) => update("agendamentos", value)} />
+          <NumberField fieldKey="campaign-log-comparecimentos" label="Comparecimentos" value={form.comparecimentos} onChange={(value) => update("comparecimentos", value)} />
+          <NumberField fieldKey="campaign-log-vendas" label="Vendas" value={form.vendas} onChange={(value) => update("vendas", value)} />
+          <NumberField fieldKey="campaign-log-ticket" label="Ticket médio" value={form.ticketMedio} onChange={(value) => update("ticketMedio", value)} />
+          <NumberField fieldKey="campaign-log-receita" label="Receita total gerada" value={form.receita} onChange={(value) => update("receita", value)} />
+        </div>
+
+        <div className="mt-4 grid gap-3 rounded-[28px] border border-emerald-100 bg-emerald-50/80 p-4 md:grid-cols-[1fr_1fr]">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Resultado previsto</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-4xl font-black text-ink">{formatMultiplier(metrics.roas)}</span>
+              <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: status.color }}>{status.label}</span>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-700">+{campaignXp} XP</span>
+            </div>
+            <p className="mt-2 text-sm font-bold text-slate-600">{status.message}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <MiniMetric label="Receita" value={formatCurrency(metrics.receita)} />
+            <MiniMetric label="CPV" value={formatCurrency(metrics.cpv)} />
+            <MiniMetric label="Taxa agenda" value={formatPercent(metrics.taxaAgendamento)} />
+            <MiniMetric label="Taxa venda" value={formatPercent(metrics.taxaVenda)} />
+          </div>
+        </div>
+
+        <button type="submit" className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+          <CheckCircle2 className="h-4 w-4" />
+          Registrar campanha e ganhar XP
+        </button>
+      </form>
+
+      <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Histórico</p>
+            <h2 className="text-xl font-black text-ink">Campanhas registradas</h2>
+          </div>
+          <XPBadge xp={records.reduce((sum, record) => sum + getCampaignXp(record), 0)} label="XP em campanhas" tone="green" />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {records.length ? records.map((record) => {
+            const recordMetrics = calculateInputMetrics(record);
+            const recordStatus = getRoasStatus(recordMetrics.roas);
+            return (
+              <article key={record.id} className="rounded-3xl border border-slate-100 bg-slate-50/80 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-ink">{record.nomeCampanha || "Campanha sem nome"}</p>
+                    <p className="text-xs font-bold text-slate-500">{record.canalCampanha} - {record.cidade || "Cidade não informada"}</p>
+                  </div>
+                  <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: recordStatus.color }}>{recordStatus.label}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <MiniMetric label="ROAS" value={formatMultiplier(recordMetrics.roas)} />
+                  <MiniMetric label="Leads" value={`${record.leads}`} />
+                  <MiniMetric label="Vendas" value={`${record.vendas}`} />
+                </div>
+                <button type="button" onClick={() => onRemove(record.id)} className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">
+                  <Trash2 className="h-4 w-4" />
+                  Excluir campanha
+                </button>
+              </article>
+            );
+          }) : (
+            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">
+              Nenhuma campanha registrada ainda. Cadastre a primeira para pontuar e aparecer na visão master.
+            </div>
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
 function RoasCalculator({
   title,
   subtitle,
@@ -1212,7 +3319,7 @@ function RoasCalculator({
   const progress = metrics.roas === null ? 0 : Math.min(100, Math.round((metrics.roas / 6) * 100));
 
   return (
-    <article className="mt-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white" style={{ backgroundColor: accent }}>
@@ -1440,7 +3547,7 @@ function SellerPlaybook() {
       {sellerTraining.map((training) => {
         const Icon = training.icon;
         return (
-          <div key={training.title} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div key={training.title} className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
             <div className="mb-3 flex items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-teal-500 text-white">
                 <Icon className="h-6 w-6" />

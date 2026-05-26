@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { BlockId } from "@/data/game-data";
+import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type ChannelInput = {
   nomeCampanha: string;
@@ -21,13 +22,21 @@ export type CampaignAdChannel = "Meta Ads" | "Google Ads" | "TikTok Ads" | "Indi
 
 export type CommercialInputs = Record<"passivo-frio" | "passivo-quente" | "ativo-frio" | "ativo-quente", ChannelInput>;
 
+export type CampaignRecord = ChannelInput & {
+  id: string;
+  cidade: string;
+  createdAt: string;
+};
+
 export type CommercialProfile = {
   unitName: string;
   channels: CommercialInputs;
   campaignRoi: ChannelInput;
+  campaignRecords: CampaignRecord[];
 };
 
-const STORAGE_KEY = "jornada-comercial-inputs-v2";
+const STORAGE_VERSION = "v2";
+const LEGACY_STORAGE_KEY = "jornada-comercial-inputs-v2";
 
 export const defaultCommercialInputs: CommercialInputs = {
   "passivo-frio": {
@@ -87,7 +96,8 @@ export const defaultCommercialInputs: CommercialInputs = {
 const defaultProfile: CommercialProfile = {
   unitName: "Sua Unidade",
   channels: defaultCommercialInputs,
-  campaignRoi: defaultCommercialInputs["passivo-frio"]
+  campaignRoi: defaultCommercialInputs["passivo-frio"],
+  campaignRecords: []
 };
 
 function mergeCommercialInputs(stored: Partial<CommercialInputs>): CommercialInputs {
@@ -99,13 +109,13 @@ function mergeCommercialInputs(stored: Partial<CommercialInputs>): CommercialInp
   };
 }
 
-function readProfile(): CommercialProfile {
+function readProfile(storageKey: string): CommercialProfile {
   if (typeof window === "undefined") {
     return defaultProfile;
   }
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) {
       return defaultProfile;
     }
@@ -115,34 +125,43 @@ function readProfile(): CommercialProfile {
       return {
         unitName: typeof parsed.unitName === "string" && parsed.unitName.trim() ? parsed.unitName : "Sua Unidade",
         channels: mergeCommercialInputs(parsed.channels),
-        campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...parsed.campaignRoi }
+        campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...parsed.campaignRoi },
+        campaignRecords: Array.isArray(parsed.campaignRecords) ? parsed.campaignRecords.map((record: Partial<CampaignRecord>) => ({
+          ...defaultCommercialInputs["passivo-frio"],
+          ...record,
+          id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+          cidade: typeof record.cidade === "string" ? record.cidade : "",
+          createdAt: typeof record.createdAt === "string" ? record.createdAt : new Date().toISOString()
+        })) : []
       };
     }
 
     return {
       unitName: "Sua Unidade",
       channels: mergeCommercialInputs(parsed),
-      campaignRoi: defaultCommercialInputs["passivo-frio"]
+      campaignRoi: defaultCommercialInputs["passivo-frio"],
+      campaignRecords: []
     };
   } catch {
     return defaultProfile;
   }
 }
 
-export function useCommercialInputs() {
+export function useCommercialInputs(unitId?: string) {
   const [profile, setProfile] = useState<CommercialProfile>(defaultProfile);
   const [isReady, setIsReady] = useState(false);
+  const storageKey = getLocalUnitStorageKey(unitId, "commercialInputs", STORAGE_VERSION);
 
   useEffect(() => {
-    setProfile(readProfile());
+    setProfile(readProfile(storageKey));
     setIsReady(true);
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (isReady) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+      window.localStorage.setItem(storageKey, JSON.stringify(profile));
     }
-  }, [profile, isReady]);
+  }, [profile, isReady, storageKey]);
 
   function updateUnitName(unitName: string) {
     setProfile((current) => ({ ...current, unitName }));
@@ -196,15 +215,39 @@ export function useCommercialInputs() {
     }));
   }
 
+  function addCampaignRecord(record: Omit<CampaignRecord, "id" | "createdAt">) {
+    setProfile((current) => ({
+      ...current,
+      campaignRecords: [
+        {
+          ...record,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString()
+        },
+        ...current.campaignRecords
+      ]
+    }));
+  }
+
+  function removeCampaignRecord(id: string) {
+    setProfile((current) => ({
+      ...current,
+      campaignRecords: current.campaignRecords.filter((record) => record.id !== id)
+    }));
+  }
+
   return {
     unitName: profile.unitName,
     inputs: profile.channels,
     campaignRoi: profile.campaignRoi,
+    campaignRecords: profile.campaignRecords,
     updateUnitName,
     updateChannel,
     clearChannel,
     updateCampaignRoi,
-    clearCampaignRoi
+    clearCampaignRoi,
+    addCampaignRecord,
+    removeCampaignRecord
   };
 }
 

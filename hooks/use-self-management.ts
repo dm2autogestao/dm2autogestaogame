@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type WeeklyPlan = {
   priority: string;
@@ -21,7 +22,8 @@ export type HistoryEntry = {
   action: string;
 };
 
-const STORAGE_KEY = "jornada-comercial-self-management-v1";
+const STORAGE_VERSION = "v1";
+const LEGACY_STORAGE_KEY = "jornada-comercial-self-management-v1";
 
 const dailyChecklist = [
   "Fazer contatos do dia",
@@ -55,13 +57,13 @@ const defaultState: SelfManagementState = {
   history: []
 };
 
-function readState(): SelfManagementState {
+function readState(storageKey: string): SelfManagementState {
   if (typeof window === "undefined") {
     return defaultState;
   }
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) {
       return defaultState;
     }
@@ -77,20 +79,21 @@ function readState(): SelfManagementState {
   }
 }
 
-export function useSelfManagement() {
+export function useSelfManagement(unitId?: string) {
   const [state, setState] = useState<SelfManagementState>(defaultState);
   const [isReady, setIsReady] = useState(false);
+  const storageKey = getLocalUnitStorageKey(unitId, "selfManagement", STORAGE_VERSION);
 
   useEffect(() => {
-    setState(readState());
+    setState(readState(storageKey));
     setIsReady(true);
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (isReady) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
     }
-  }, [isReady, state]);
+  }, [isReady, state, storageKey]);
 
   function updatePlan<K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) {
     setState((current) => ({

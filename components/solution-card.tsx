@@ -15,8 +15,8 @@ export function SolutionCard({ title, xp, applied, onToggle }: SolutionCardProps
     <button
       type="button"
       onClick={onToggle}
-      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-        applied ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+      className={`flex w-full items-center gap-3 rounded-[22px] border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft ${
+        applied ? "border-emerald-200 bg-emerald-50" : "border-white/80 bg-white/90"
       }`}
     >
       <div className={`${applied ? "text-emerald-600" : "text-slate-300"}`}>
@@ -26,7 +26,7 @@ export function SolutionCard({ title, xp, applied, onToggle }: SolutionCardProps
         <p className="text-sm font-black text-ink">{title}</p>
         <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-slate-500">
           <Wrench className="h-3.5 w-3.5" />
-          {applied ? "Acao aplicada" : "Marcar como aplicada"}
+          {applied ? "Ação aplicada" : "Marcar como aplicada"}
         </p>
       </div>
       <XPBadge xp={xp} tone={applied ? "green" : "blue"} />

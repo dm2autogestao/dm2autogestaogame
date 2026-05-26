@@ -3,6 +3,7 @@ node_modules/
 out/
 *.tsbuildinfo
 static-server.log
+local-server.log
 .env
 .env*
 !.env.example

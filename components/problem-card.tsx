@@ -16,8 +16,8 @@ export function ProblemCard({ title, symptom, icon: Icon, open, onClick }: Probl
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-3xl border-2 border-b-4 p-4 text-left transition active:translate-y-1 active:border-b-2 ${
-        open ? "border-sky-400 bg-sky-50" : "border-slate-200 bg-white"
+      className={`w-full rounded-[26px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft active:translate-y-0 ${
+        open ? "border-sky-200 bg-sky-50" : "border-white/80 bg-white/90"
       }`}
     >
       <div className="flex items-center gap-3">

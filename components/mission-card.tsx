@@ -13,8 +13,8 @@ export function MissionCard({ title, xp, done, onToggle }: MissionCardProps) {
     <button
       type="button"
       onClick={onToggle}
-      className={`flex w-full items-center gap-3 rounded-3xl border-2 border-b-4 p-4 text-left transition active:translate-y-1 active:border-b-2 ${
-        done ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white"
+      className={`flex w-full items-center gap-3 rounded-[26px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft active:translate-y-0 ${
+        done ? "border-emerald-200 bg-emerald-50" : "border-white/80 bg-white/90"
       }`}
     >
       <div className={`${done ? "text-emerald-600" : "text-slate-300"}`}>
@@ -22,7 +22,7 @@ export function MissionCard({ title, xp, done, onToggle }: MissionCardProps) {
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-black leading-snug ${done ? "text-emerald-800 line-through decoration-2" : "text-ink"}`}>{title}</p>
-        <p className="mt-1 text-xs font-bold text-slate-500">{done ? "Meta concluida" : "Toque para ganhar XP"}</p>
+        <p className="mt-1 text-xs font-bold text-slate-500">{done ? "Meta concluída" : "Toque para ganhar XP"}</p>
       </div>
       <XPBadge xp={xp} tone={done ? "green" : "gold"} />
     </button>
