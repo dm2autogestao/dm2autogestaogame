@@ -874,6 +874,20 @@ async function deleteUnitFromDb(cnpj: string) {
   });
 }
 
+async function readJsonResponse(response: Response, fallbackMessage: string) {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return { error: fallbackMessage };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: fallbackMessage };
+  }
+}
+
 async function loginUnitOnServer(identifier: string, password: string) {
   const response = await fetch("/api/auth/login", {
     method: "POST",
@@ -881,7 +895,7 @@ async function loginUnitOnServer(identifier: string, password: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier, password })
   });
-  const result = await response.json();
+  const result = await readJsonResponse(response, "Nao foi possivel validar o login agora. Tente novamente em alguns segundos.");
 
   if (!response.ok) {
     throw new Error(result.error ?? "CNPJ, e-mail ou senha incorretos.");
@@ -897,7 +911,7 @@ async function loginMasterOnServer(email: string, password: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
   });
-  const result = await response.json();
+  const result = await readJsonResponse(response, "Nao foi possivel validar o acesso master agora. Tente novamente em alguns segundos.");
 
   if (!response.ok) {
     throw new Error(result.error ?? "Acesso master nao encontrado.");

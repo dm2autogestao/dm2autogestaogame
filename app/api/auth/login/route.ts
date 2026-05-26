@@ -29,55 +29,59 @@ function sanitizeUnit(id: string, data: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as LoginPayload;
-  const identifier = (body.identifier ?? "").trim().toLowerCase();
-  const password = body.password ?? "";
+  try {
+    const body = (await request.json()) as LoginPayload;
+    const identifier = (body.identifier ?? "").trim().toLowerCase();
+    const password = body.password ?? "";
 
-  if (!identifier || !password) {
-    return NextResponse.json({ error: "Informe CNPJ/e-mail e senha." }, { status: 400 });
+    if (!identifier || !password) {
+      return NextResponse.json({ error: "Informe CNPJ/e-mail e senha." }, { status: 400 });
+    }
+
+    const db = getDb();
+    const cnpj = normalizeCnpj(identifier);
+    let snapshot = cnpj.length === 14 ? await db.collection("units").doc(cnpj).get() : null;
+
+    if (!snapshot?.exists) {
+      const byEmail = await db.collection("units").where("email", "==", identifier).limit(1).get();
+      snapshot = byEmail.docs[0] ?? null;
+    }
+
+    if (!snapshot?.exists) {
+      return NextResponse.json({ error: "CNPJ, e-mail ou senha incorretos." }, { status: 401 });
+    }
+
+    const data = snapshot.data() ?? {};
+    const hasSecurePassword = verifyPassword(password, data.passwordHash, data.passwordSalt);
+    const hasLegacyPassword = !hasSecurePassword && typeof data.password === "string" && data.password === password;
+
+    if (!hasSecurePassword && !hasLegacyPassword) {
+      return NextResponse.json({ error: "CNPJ, e-mail ou senha incorretos." }, { status: 401 });
+    }
+
+    if (data.status === "pending") {
+      return NextResponse.json({ error: "Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora." }, { status: 403 });
+    }
+
+    if (data.status === "blocked") {
+      return NextResponse.json({ error: "Esta unidade esta bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
+    }
+
+    if (hasLegacyPassword) {
+      const nextPassword = hashPassword(password);
+      await snapshot.ref.set({
+        password: FieldValue.delete(),
+        passwordHash: nextPassword.hash,
+        passwordSalt: nextPassword.salt,
+        passwordUpdatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    const response = NextResponse.json({ ok: true, unit: sanitizeUnit(snapshot.id, data) });
+    response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions());
+
+    return response;
+  } catch {
+    return NextResponse.json({ error: "Nao foi possivel validar o login agora. Tente novamente em alguns segundos." }, { status: 500 });
   }
-
-  const db = getDb();
-  const cnpj = normalizeCnpj(identifier);
-  let snapshot = cnpj.length === 14 ? await db.collection("units").doc(cnpj).get() : null;
-
-  if (!snapshot?.exists) {
-    const byEmail = await db.collection("units").where("email", "==", identifier).limit(1).get();
-    snapshot = byEmail.docs[0] ?? null;
-  }
-
-  if (!snapshot?.exists) {
-    return NextResponse.json({ error: "CNPJ, e-mail ou senha incorretos." }, { status: 401 });
-  }
-
-  const data = snapshot.data() ?? {};
-  const hasSecurePassword = verifyPassword(password, data.passwordHash, data.passwordSalt);
-  const hasLegacyPassword = !hasSecurePassword && typeof data.password === "string" && data.password === password;
-
-  if (!hasSecurePassword && !hasLegacyPassword) {
-    return NextResponse.json({ error: "CNPJ, e-mail ou senha incorretos." }, { status: 401 });
-  }
-
-  if (data.status === "pending") {
-    return NextResponse.json({ error: "Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora." }, { status: 403 });
-  }
-
-  if (data.status === "blocked") {
-    return NextResponse.json({ error: "Esta unidade esta bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
-  }
-
-  if (hasLegacyPassword) {
-    const nextPassword = hashPassword(password);
-    await snapshot.ref.set({
-      password: FieldValue.delete(),
-      passwordHash: nextPassword.hash,
-      passwordSalt: nextPassword.salt,
-      passwordUpdatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
-
-  const response = NextResponse.json({ ok: true, unit: sanitizeUnit(snapshot.id, data) });
-  response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions());
-
-  return response;
 }
