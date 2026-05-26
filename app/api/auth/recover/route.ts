@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { getDb } from "@/lib/firestore-admin";
+import { randomBytes } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,21 @@ export async function POST(request: Request) {
 
     if (!unitEmail) {
       return NextResponse.json({ error: "Nao encontramos uma unidade com esse CNPJ ou e-mail." }, { status: 404 });
+    }
+
+    try {
+      await getAuth().getUserByEmail(unitEmail);
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+
+      if (code !== "auth/user-not-found") {
+        throw error;
+      }
+
+      await getAuth().createUser({
+        email: unitEmail,
+        password: randomBytes(18).toString("base64url")
+      });
     }
 
     await getAuth().generatePasswordResetLink(unitEmail);
