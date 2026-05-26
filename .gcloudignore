@@ -1,10 +1,11 @@
-node_modules
-.next
-out
 .git
+.next
 .gcloud
 .gcloud-run
+node_modules
+out
 *.log
 *.tsbuildinfo
 .env
 .env*
+!.env.example
