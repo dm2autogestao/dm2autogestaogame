@@ -81,7 +81,8 @@ export async function POST(request: Request) {
     response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions());
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error("Franchisee login failed", error);
     return NextResponse.json({ error: "Nao foi possivel validar o login agora. Tente novamente em alguns segundos." }, { status: 500 });
   }
 }

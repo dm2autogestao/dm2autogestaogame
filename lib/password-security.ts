@@ -10,12 +10,16 @@ export function hashPassword(password: string) {
 }
 
 export function verifyPassword(password: string, hash?: unknown, salt?: unknown) {
-  if (typeof hash !== "string" || typeof salt !== "string") {
+  try {
+    if (typeof hash !== "string" || typeof salt !== "string") {
+      return false;
+    }
+
+    const candidate = scryptSync(password, salt, KEY_LENGTH);
+    const stored = Buffer.from(hash, "hex");
+
+    return stored.length === candidate.length && timingSafeEqual(stored, candidate);
+  } catch {
     return false;
   }
-
-  const candidate = scryptSync(password, salt, KEY_LENGTH);
-  const stored = Buffer.from(hash, "hex");
-
-  return stored.length === candidate.length && timingSafeEqual(stored, candidate);
 }
