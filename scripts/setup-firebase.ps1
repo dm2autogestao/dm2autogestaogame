@@ -2,7 +2,7 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$ProjectId,
 
-  [string]$DisplayName = "DM2 Auto Gestao",
+  [string]$DisplayName = "DM2 Auto Gestao 2-0",
   [string]$Location = "southamerica-east1"
 )
 
