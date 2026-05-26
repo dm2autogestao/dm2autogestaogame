@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { COOKIE_NAME, createSessionToken, getSessionCookieOptions } from "@/lib/session-security";
 
 export const runtime = "nodejs";
 
@@ -18,11 +19,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Acesso master nao encontrado." }, { status: 401 });
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     session: {
       role: "master",
       unitName: "Franqueadora"
     }
   });
+  response.cookies.set(COOKIE_NAME, createSessionToken({ role: "master" }), getSessionCookieOptions());
+
+  return response;
 }

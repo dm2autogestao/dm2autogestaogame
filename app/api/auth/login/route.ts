@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getDb } from "@/lib/firestore-admin";
 import { hashPassword, verifyPassword } from "@/lib/password-security";
+import { COOKIE_NAME, createSessionToken, getSessionCookieOptions } from "@/lib/session-security";
 
 export const runtime = "nodejs";
 
@@ -75,5 +76,8 @@ export async function POST(request: Request) {
     }, { merge: true });
   }
 
-  return NextResponse.json({ ok: true, unit: sanitizeUnit(snapshot.id, data) });
+  const response = NextResponse.json({ ok: true, unit: sanitizeUnit(snapshot.id, data) });
+  response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions());
+
+  return response;
 }

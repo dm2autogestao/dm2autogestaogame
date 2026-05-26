@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { cookies } from "next/headers";
 import { getDb } from "@/lib/firestore-admin";
 import { maskCnpj, maskEmail, maskPhone } from "@/lib/data-masking";
 import { hashPassword } from "@/lib/password-security";
+import { COOKIE_NAME, readSessionToken } from "@/lib/session-security";
 
 export const runtime = "nodejs";
 
@@ -40,6 +42,14 @@ function normalizeUnitPayload(body: UnitPayload) {
   };
 }
 
+function readRequestSession() {
+  return readSessionToken(cookies().get(COOKIE_NAME)?.value);
+}
+
+function requireMaster() {
+  return readRequestSession()?.role === "master";
+}
+
 function serializeDate(value: unknown) {
   if (value && typeof value === "object" && "toDate" in value) {
     const date = (value as TimestampLike).toDate?.();
@@ -71,6 +81,10 @@ function serializeUnit(id: string, data: Record<string, unknown>) {
 }
 
 export async function GET() {
+  if (!requireMaster()) {
+    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+  }
+
   const snapshot = await getDb().collection("units").orderBy("createdAt", "desc").get();
   const units = snapshot.docs.map((doc) => serializeUnit(doc.id, doc.data()));
 
@@ -80,15 +94,23 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = (await request.json()) as UnitPayload;
   const unit = normalizeUnitPayload(body);
+  const isMaster = requireMaster();
 
   if (!unit.cnpj || !unit.unitName || !unit.email || !unit.password) {
     return NextResponse.json({ error: "Dados obrigatorios ausentes." }, { status: 400 });
   }
 
+  const existing = await getDb().collection("units").doc(unit.cnpj).get();
+  if (existing.exists && !isMaster) {
+    return NextResponse.json({ error: "Este CNPJ ja possui cadastro." }, { status: 409 });
+  }
+
   const password = hashPassword(unit.password);
+  const status = isMaster ? unit.status : "pending";
 
   await getDb().collection("units").doc(unit.cnpj).set({
     ...unit,
+    status,
     password: FieldValue.delete(),
     passwordHash: password.hash,
     passwordSalt: password.salt,
@@ -96,10 +118,14 @@ export async function POST(request: Request) {
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
 
-  return NextResponse.json({ ok: true, unit: { ...unit, password: undefined } });
+  return NextResponse.json({ ok: true, unit: { ...unit, status, password: undefined } });
 }
 
 export async function PATCH(request: Request) {
+  if (!requireMaster()) {
+    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+  }
+
   const body = (await request.json()) as UnitPayload & { originalCnpj?: string; resetPassword?: boolean };
   const originalCnpj = cleanUnitId(body.originalCnpj ?? body.cnpj);
 
@@ -139,6 +165,10 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!requireMaster()) {
+    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const unitId = cleanUnitId(searchParams.get("unitId"));
 
