@@ -133,6 +133,7 @@ type MasterUnitSummary = {
 };
 
 const AUTH_SESSION_KEY = "dm2-auth-session-v1";
+const AUTH_REMEMBER_KEY = "dm2-auth-remember-v1";
 const REGISTERED_UNITS_KEY = "dm2-registered-units-v1";
 
 const navItems = [
@@ -201,10 +202,16 @@ export default function Home() {
     }
   }, [authSession?.role, authSession?.unitName]);
 
-  function startSession(session: AuthSession) {
+  function startSession(session: AuthSession, remember = false) {
     setAuthSession(session);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      if (remember) {
+        window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        window.localStorage.setItem(AUTH_REMEMBER_KEY, "true");
+      } else {
+        window.localStorage.removeItem(AUTH_SESSION_KEY);
+        window.localStorage.removeItem(AUTH_REMEMBER_KEY);
+      }
     }
   }
 
@@ -219,6 +226,7 @@ export default function Home() {
     setAuthSession(null);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_SESSION_KEY);
+      window.localStorage.removeItem(AUTH_REMEMBER_KEY);
     }
   }
 
@@ -800,6 +808,11 @@ function readAuthSession(): AuthSession | null {
   }
 
   try {
+    if (window.localStorage.getItem(AUTH_REMEMBER_KEY) !== "true") {
+      window.localStorage.removeItem(AUTH_SESSION_KEY);
+      return null;
+    }
+
     const stored = window.localStorage.getItem(AUTH_SESSION_KEY);
     return stored ? JSON.parse(stored) : null;
   } catch {
@@ -893,12 +906,12 @@ async function readJsonResponse(response: Response, fallbackMessage: string) {
   }
 }
 
-async function loginUnitOnServer(identifier: string, password: string) {
+async function loginUnitOnServer(identifier: string, password: string, remember: boolean) {
   const response = await fetch("/api/auth/login", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identifier, password })
+    body: JSON.stringify({ identifier, password, remember })
   });
   const result = await readJsonResponse(response, "Nao foi possivel validar o login agora. Tente novamente em alguns segundos.");
 
@@ -909,12 +922,12 @@ async function loginUnitOnServer(identifier: string, password: string) {
   return result.unit as RegisteredUnit;
 }
 
-async function loginMasterOnServer(email: string, password: string) {
+async function loginMasterOnServer(email: string, password: string, remember: boolean) {
   const response = await fetch("/api/auth/master", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password, remember })
   });
   const result = await readJsonResponse(response, "Nao foi possivel validar o acesso master agora. Tente novamente em alguns segundos.");
 
@@ -925,7 +938,7 @@ async function loginMasterOnServer(email: string, password: string) {
   return result.session as AuthSession;
 }
 
-async function loginWithGoogleOnServer(role: AuthRole) {
+async function loginWithGoogleOnServer(role: AuthRole, remember: boolean) {
   if (!firebaseAuth) {
     throw new Error("Firebase nao esta configurado para login com Google.");
   }
@@ -936,7 +949,7 @@ async function loginWithGoogleOnServer(role: AuthRole) {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, role })
+    body: JSON.stringify({ idToken, role, remember })
   });
   const result = await readJsonResponse(response, "Nao foi possivel validar o login com Google agora.");
 
@@ -1015,11 +1028,12 @@ function unitMatchesSearch(summary: MasterUnitSummary, search: string) {
   return normalizeSearch(haystack).includes(term);
 }
 
-function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession, remember?: boolean) => void }) {
   const [role, setRole] = useState<AuthRole>("franchisee");
   const [view, setView] = useState<AuthView>("login");
   const [message, setMessage] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [login, setLogin] = useState({ cnpj: "", email: "", password: "" });
   const [register, setRegister] = useState({
     unitName: "",
@@ -1040,7 +1054,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
     if (role === "master") {
       try {
-        onAuthenticated(await loginMasterOnServer(login.email, login.password));
+        onAuthenticated(await loginMasterOnServer(login.email, login.password, rememberLogin), rememberLogin);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Acesso master nao encontrado.");
       }
@@ -1049,7 +1063,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
     let unit: RegisteredUnit;
     try {
-      unit = await loginUnitOnServer(login.cnpj.trim(), login.password);
+      unit = await loginUnitOnServer(login.cnpj.trim(), login.password, rememberLogin);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
       return;
@@ -1060,14 +1074,17 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       return;
     }
 
-    onAuthenticated({
-      role: "franchisee",
-      cnpj: unit.cnpj,
-      unitName: unit.unitName,
-      responsibleName: unit.responsibleName,
-      city: unit.city,
-      state: unit.state
-    });
+    onAuthenticated(
+      {
+        role: "franchisee",
+        cnpj: unit.cnpj,
+        unitName: unit.unitName,
+        responsibleName: unit.responsibleName,
+        city: unit.city,
+        state: unit.state
+      },
+      rememberLogin
+    );
   }
 
   async function submitGoogleLogin() {
@@ -1075,22 +1092,25 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     setGoogleLoading(true);
 
     try {
-      const result = await loginWithGoogleOnServer(role);
+      const result = await loginWithGoogleOnServer(role, rememberLogin);
 
       if (role === "master") {
-        onAuthenticated(result as AuthSession);
+        onAuthenticated(result as AuthSession, rememberLogin);
         return;
       }
 
       const unit = result as RegisteredUnit;
-      onAuthenticated({
-        role: "franchisee",
-        cnpj: unit.cnpj,
-        unitName: unit.unitName,
-        responsibleName: unit.responsibleName,
-        city: unit.city,
-        state: unit.state
-      });
+      onAuthenticated(
+        {
+          role: "franchisee",
+          cnpj: unit.cnpj,
+          unitName: unit.unitName,
+          responsibleName: unit.responsibleName,
+          city: unit.city,
+          state: unit.state
+        },
+        rememberLogin
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Nao foi possivel entrar com Google agora.");
     } finally {
@@ -1295,6 +1315,15 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                   <AuthInput icon={Mail} label="E-mail master" value={login.email} onChange={(value) => setLogin((current) => ({ ...current, email: value }))} placeholder="master@franquia.com" />
                 )}
                 <AuthInput icon={KeyRound} label="Senha" type="password" value={login.password} onChange={(value) => setLogin((current) => ({ ...current, password: value }))} placeholder="Digite sua senha" />
+                <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberLogin}
+                    onChange={(event) => setRememberLogin(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                  />
+                  Permanecer conectado
+                </label>
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
                   <LogIn className="h-4 w-4" />
                   Entrar

@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 type LoginPayload = {
   identifier?: string;
   password?: string;
+  remember?: boolean;
 };
 
 function normalizeCnpj(value: string) {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as LoginPayload;
     const identifier = (body.identifier ?? "").trim().toLowerCase();
     const password = body.password ?? "";
+    const remember = body.remember === true;
 
     if (!identifier || !password) {
       return NextResponse.json({ error: "Informe CNPJ/e-mail e senha." }, { status: 400 });
@@ -78,7 +80,7 @@ export async function POST(request: Request) {
     }
 
     const response = NextResponse.json({ ok: true, unit: sanitizeUnit(snapshot.id, data) });
-    response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions());
+    response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: snapshot.id }), getSessionCookieOptions({ remember }));
 
     return response;
   } catch (error) {

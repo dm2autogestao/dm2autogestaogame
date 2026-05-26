@@ -57,14 +57,25 @@ export function readSessionToken(token?: string): AppSession | null {
   }
 }
 
-export function getSessionCookieOptions() {
-  return {
+export function getSessionCookieOptions(options?: { remember?: boolean }) {
+  const cookieOptions: {
+    httpOnly: true;
+    sameSite: "lax";
+    secure: boolean;
+    path: string;
+    maxAge?: number;
+  } = {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: SESSION_SECONDS,
     path: "/"
   };
+
+  if (options?.remember) {
+    cookieOptions.maxAge = SESSION_SECONDS;
+  }
+
+  return cookieOptions;
 }
 
 export { COOKIE_NAME };

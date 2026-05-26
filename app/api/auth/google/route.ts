@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 type GoogleLoginPayload = {
   idToken?: string;
   role?: "franchisee" | "master";
+  remember?: boolean;
 };
 
 function sanitizeUnit(id: string, data: Record<string, unknown>) {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as GoogleLoginPayload;
     const idToken = body.idToken ?? "";
     const role = body.role ?? "franchisee";
+    const remember = body.remember === true;
 
     if (!idToken) {
       return NextResponse.json({ error: "Token do Google ausente." }, { status: 400 });
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
           unitName: "Franqueadora"
         }
       });
-      response.cookies.set(COOKIE_NAME, createSessionToken({ role: "master" }), getSessionCookieOptions());
+      response.cookies.set(COOKIE_NAME, createSessionToken({ role: "master" }), getSessionCookieOptions({ remember }));
 
       return response;
     }
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
     await unitDoc.ref.set({ lastLoginAt: FieldValue.serverTimestamp() }, { merge: true });
 
     const response = NextResponse.json({ ok: true, unit: sanitizeUnit(unitDoc.id, data) });
-    response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: unitDoc.id }), getSessionCookieOptions());
+    response.cookies.set(COOKIE_NAME, createSessionToken({ role: "franchisee", cnpj: unitDoc.id }), getSessionCookieOptions({ remember }));
 
     return response;
   } catch (error) {
