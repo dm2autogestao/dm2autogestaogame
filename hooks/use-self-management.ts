@@ -85,15 +85,63 @@ export function useSelfManagement(unitId?: string) {
   const storageKey = getLocalUnitStorageKey(unitId, "selfManagement", STORAGE_VERSION);
 
   useEffect(() => {
-    setState(readState(storageKey));
-    setIsReady(true);
-  }, [storageKey]);
+    let isMounted = true;
+
+    async function loadState() {
+      const localState = readState(storageKey);
+
+      if (!unitId) {
+        if (isMounted) {
+          setState(localState);
+          setIsReady(true);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`);
+        const result = await response.json();
+        const remoteState = result?.data?.selfManagement as Partial<SelfManagementState> | undefined;
+
+        if (isMounted) {
+          setState(remoteState ? {
+            weeklyPlan: { ...defaultPlan, ...remoteState.weeklyPlan },
+            completedDaily: Array.isArray(remoteState.completedDaily) ? remoteState.completedDaily : [],
+            history: Array.isArray(remoteState.history) ? remoteState.history : []
+          } : localState);
+          setIsReady(true);
+        }
+      } catch {
+        if (isMounted) {
+          setState(localState);
+          setIsReady(true);
+        }
+      }
+    }
+
+    setIsReady(false);
+    void loadState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storageKey, unitId]);
 
   useEffect(() => {
     if (isReady) {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
+      if (unitId) {
+        void fetch("/api/unit-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            unitId,
+            selfManagement: state
+          })
+        }).catch(() => undefined);
+      }
     }
-  }, [isReady, state, storageKey]);
+  }, [isReady, state, storageKey, unitId]);
 
   function updatePlan<K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) {
     setState((current) => ({

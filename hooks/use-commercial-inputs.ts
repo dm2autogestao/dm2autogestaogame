@@ -153,15 +153,65 @@ export function useCommercialInputs(unitId?: string) {
   const storageKey = getLocalUnitStorageKey(unitId, "commercialInputs", STORAGE_VERSION);
 
   useEffect(() => {
-    setProfile(readProfile(storageKey));
-    setIsReady(true);
-  }, [storageKey]);
+    let isMounted = true;
+
+    async function loadProfile() {
+      const localProfile = readProfile(storageKey);
+
+      if (!unitId) {
+        if (isMounted) {
+          setProfile(localProfile);
+          setIsReady(true);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`);
+        const result = await response.json();
+        const remoteProfile = result?.data?.commercialInputs;
+
+        if (isMounted) {
+          setProfile(remoteProfile?.channels ? {
+            unitName: typeof remoteProfile.unitName === "string" ? remoteProfile.unitName : localProfile.unitName,
+            channels: mergeCommercialInputs(remoteProfile.channels),
+            campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...remoteProfile.campaignRoi },
+            campaignRecords: Array.isArray(remoteProfile.campaignRecords) ? remoteProfile.campaignRecords : []
+          } : localProfile);
+          setIsReady(true);
+        }
+      } catch {
+        if (isMounted) {
+          setProfile(localProfile);
+          setIsReady(true);
+        }
+      }
+    }
+
+    setIsReady(false);
+    void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storageKey, unitId]);
 
   useEffect(() => {
     if (isReady) {
       window.localStorage.setItem(storageKey, JSON.stringify(profile));
+      if (unitId) {
+        void fetch("/api/unit-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            unitId,
+            unitName: profile.unitName,
+            commercialInputs: profile
+          })
+        }).catch(() => undefined);
+      }
     }
-  }, [profile, isReady, storageKey]);
+  }, [profile, isReady, storageKey, unitId]);
 
   function updateUnitName(unitName: string) {
     setProfile((current) => ({ ...current, unitName }));

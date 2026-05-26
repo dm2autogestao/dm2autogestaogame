@@ -39,13 +39,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unitId obrigatorio" }, { status: 400 });
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     unitName: body.unitName ?? "Sua Unidade",
-    commercialInputs: body.commercialInputs ?? null,
-    gameProgress: body.gameProgress ?? null,
-    selfManagement: body.selfManagement ?? null,
     updatedAt: FieldValue.serverTimestamp()
   };
+
+  if (Object.prototype.hasOwnProperty.call(body, "commercialInputs")) {
+    payload.commercialInputs = body.commercialInputs;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "gameProgress")) {
+    payload.gameProgress = body.gameProgress;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "selfManagement")) {
+    payload.selfManagement = body.selfManagement;
+  }
 
   await getDb().collection("units").doc(unitId).set(payload, { merge: true });
 

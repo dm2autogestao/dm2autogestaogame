@@ -4,6 +4,7 @@ out/
 *.tsbuildinfo
 static-server.log
 local-server.log
+next-dev*.log
 .env
 .env*
 !.env.example

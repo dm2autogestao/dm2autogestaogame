@@ -92,6 +92,9 @@ type RegisteredUnit = {
   status: "pending" | "active" | "blocked";
   createdAt: string;
   updatedAt?: string;
+  commercialInputs?: CommercialProfileSnapshot;
+  gameProgress?: ProgressSnapshot;
+  selfManagement?: SelfManagementSnapshot;
 };
 
 type MasterUnitForm = {
@@ -812,6 +815,48 @@ function saveRegisteredUnits(units: RegisteredUnit[]) {
   }
 }
 
+async function fetchRegisteredUnitsFromDb() {
+  const response = await fetch("/api/units", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Nao foi possivel carregar unidades.");
+  }
+
+  const result = await response.json();
+  return Array.isArray(result.units) ? result.units as RegisteredUnit[] : [];
+}
+
+async function loadRegisteredUnits() {
+  try {
+    const units = await fetchRegisteredUnitsFromDb();
+    saveRegisteredUnits(units);
+    return units;
+  } catch {
+    return readRegisteredUnits();
+  }
+}
+
+async function saveUnitToDb(unit: RegisteredUnit) {
+  await fetch("/api/units", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(unit)
+  });
+}
+
+async function updateUnitInDb(originalCnpj: string, data: Partial<RegisteredUnit> & { resetPassword?: boolean }) {
+  await fetch("/api/units", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ originalCnpj, ...data })
+  });
+}
+
+async function deleteUnitFromDb(cnpj: string) {
+  await fetch(`/api/units?unitId=${encodeURIComponent(cnpj)}`, {
+    method: "DELETE"
+  });
+}
+
 function normalizeCnpj(value: string) {
   return value.replace(/\D/g, "").slice(0, 14);
 }
@@ -873,7 +918,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   });
   const [recover, setRecover] = useState({ identifier: "", password: "", confirmPassword: "" });
 
-  function submitLogin(event: React.FormEvent<HTMLFormElement>) {
+  async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
 
@@ -890,7 +935,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     const loginIdentifier = login.cnpj.trim();
     const cnpj = normalizeCnpj(loginIdentifier);
     const email = loginIdentifier.toLowerCase();
-    const unit = readRegisteredUnits().find((item) => (item.cnpj === cnpj || item.email === email) && item.password === login.password);
+    const units = await loadRegisteredUnits();
+    const unit = units.find((item) => (item.cnpj === cnpj || item.email === email) && item.password === login.password);
 
     if (!unit) {
       setMessage("CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
@@ -917,7 +963,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     });
   }
 
-  function submitRegister(event: React.FormEvent<HTMLFormElement>) {
+  async function submitRegister(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
 
@@ -932,7 +978,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       return;
     }
 
-    const units = readRegisteredUnits();
+    const units = await loadRegisteredUnits();
     if (units.some((unit) => unit.cnpj === cnpj)) {
       setMessage("Este CNPJ já possui cadastro. Use login ou recuperação de senha.");
       return;
@@ -952,12 +998,14 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       updatedAt: new Date().toISOString()
     };
 
-    saveRegisteredUnits([...units, unit]);
+    const nextUnits = [...units, unit];
+    saveRegisteredUnits(nextUnits);
+    await saveUnitToDb(unit);
     setView("login");
     setMessage("Cadastro enviado. A franqueadora precisa aprovar a unidade para liberar o acesso.");
   }
 
-  function submitRecover(event: React.FormEvent<HTMLFormElement>) {
+  async function submitRecover(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
 
@@ -966,7 +1014,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       return;
     }
 
-    const units = readRegisteredUnits();
+    const units = await loadRegisteredUnits();
     const identifier = normalizeCnpj(recover.identifier);
     const unitIndex = units.findIndex(
       (unit) => unit.cnpj === identifier || unit.email === recover.identifier.trim().toLowerCase()
@@ -985,6 +1033,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     const nextUnits = [...units];
     nextUnits[unitIndex] = { ...nextUnits[unitIndex], password: recover.password };
     saveRegisteredUnits(nextUnits);
+    await updateUnitInDb(nextUnits[unitIndex].cnpj, { password: recover.password });
     setView("login");
     setMessage("Senha atualizada. Entre com CNPJ ou e-mail e a nova senha.");
   }
@@ -1181,7 +1230,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   const [editUnitCnpj, setEditUnitCnpj] = useState<string | null>(null);
 
   useEffect(() => {
-    setUnits(readRegisteredUnits());
+    void loadRegisteredUnits().then(setUnits);
   }, []);
 
   function persistUnits(nextUnits: RegisteredUnit[]) {
@@ -1194,6 +1243,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       unit.cnpj === cnpj ? { ...unit, status, updatedAt: new Date().toISOString() } : unit
     ));
     persistUnits(nextUnits);
+    void updateUnitInDb(cnpj, { status }).catch(() => setMasterNotice("Status atualizado localmente, mas o banco nao confirmou a alteracao."));
     setMasterNotice(status === "active" ? "Unidade aprovada e liberada para login." : status === "blocked" ? "Unidade bloqueada." : "Unidade voltou para pendente.");
   }
 
@@ -1227,6 +1277,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
     };
 
     persistUnits([...units, nextUnit]);
+    void saveUnitToDb(nextUnit).catch(() => setMasterNotice("Unidade salva localmente, mas o banco nao confirmou o cadastro."));
     setSelectedUnitCnpj(cnpj);
     setMasterNotice("Unidade cadastrada e liberada para login.");
     return "";
@@ -1261,6 +1312,16 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
     } : unit);
 
     persistUnits(nextUnits);
+    void updateUnitInDb(originalCnpj, nextUnits.find((unit) => unit.cnpj === cnpj) ?? {
+      unitName: form.unitName.trim(),
+      responsibleName: form.responsibleName.trim(),
+      cnpj,
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      city: form.city.trim(),
+      state: form.state.trim().toUpperCase(),
+      password: form.password
+    }).catch(() => setMasterNotice("Dados atualizados localmente, mas o banco nao confirmou a alteracao."));
     setSelectedUnitCnpj(cnpj);
     setEditUnitCnpj(null);
     setMasterNotice("Dados do franqueado atualizados.");
@@ -1270,6 +1331,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   function resetUnitPassword(cnpj: string) {
     const nextUnits = units.map((unit) => unit.cnpj === cnpj ? { ...unit, password: "123456", updatedAt: new Date().toISOString() } : unit);
     persistUnits(nextUnits);
+    void updateUnitInDb(cnpj, { resetPassword: true }).catch(() => setMasterNotice("Senha resetada localmente, mas o banco nao confirmou a alteracao."));
     setMasterNotice("Senha resetada para 123456.");
   }
 
@@ -1282,6 +1344,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
     }
 
     persistUnits(units.filter((item) => item.cnpj !== cnpj));
+    void deleteUnitFromDb(cnpj).catch(() => setMasterNotice("Franqueado removido localmente, mas o banco nao confirmou a exclusao."));
     setSelectedUnitCnpj("");
     setDetailUnitCnpj(null);
     setEditUnitCnpj(null);
@@ -2386,9 +2449,9 @@ function readMasterUnitSummary(unit: RegisteredUnit): MasterUnitSummary {
   const progressKey = getLocalUnitStorageKey(unit.cnpj, "gameProgress", "v2");
   const commercialKey = getLocalUnitStorageKey(unit.cnpj, "commercialInputs", "v2");
   const selfManagementKey = getLocalUnitStorageKey(unit.cnpj, "selfManagement", "v1");
-  const progress = readJson<{ completedMissions?: string[]; appliedSolutions?: string[] }>(progressKey);
-  const commercial = readJson<CommercialProfileSnapshot>(commercialKey);
-  const selfManagement = readJson<SelfManagementSnapshot>(selfManagementKey);
+  const progress = unit.gameProgress ?? readJson<ProgressSnapshot>(progressKey);
+  const commercial = unit.commercialInputs ?? readJson<CommercialProfileSnapshot>(commercialKey);
+  const selfManagement = unit.selfManagement ?? readJson<SelfManagementSnapshot>(selfManagementKey);
   const completedMissions = Array.isArray(progress?.completedMissions) ? progress.completedMissions : [];
   const appliedSolutions = Array.isArray(progress?.appliedSolutions) ? progress.appliedSolutions : [];
   const completedSet = new Set(completedMissions);
@@ -2443,7 +2506,14 @@ type CommercialProfileSnapshot = {
   campaignRecords?: CampaignRecord[];
 };
 
+type ProgressSnapshot = {
+  completedMissions?: string[];
+  appliedSolutions?: string[];
+  selectedBlockId?: BlockId;
+};
+
 type SelfManagementSnapshot = {
+  completedDaily?: string[];
   weeklyPlan?: WeeklyPlan;
   history?: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
 };

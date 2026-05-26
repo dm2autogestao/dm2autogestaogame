@@ -56,15 +56,63 @@ export function useGameProgress(unitId?: string) {
   const storageKey = getLocalUnitStorageKey(unitId, "gameProgress", STORAGE_VERSION);
 
   useEffect(() => {
-    setProgress(readProgress(storageKey));
-    setIsReady(true);
-  }, [storageKey]);
+    let isMounted = true;
+
+    async function loadProgress() {
+      const localProgress = readProgress(storageKey);
+
+      if (!unitId) {
+        if (isMounted) {
+          setProgress(localProgress);
+          setIsReady(true);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`);
+        const result = await response.json();
+        const remoteProgress = result?.data?.gameProgress as Partial<ProgressState> | undefined;
+
+        if (isMounted) {
+          setProgress(remoteProgress ? {
+            completedMissions: Array.isArray(remoteProgress.completedMissions) ? remoteProgress.completedMissions : [],
+            appliedSolutions: Array.isArray(remoteProgress.appliedSolutions) ? remoteProgress.appliedSolutions : [],
+            selectedBlockId: isBlockId(remoteProgress.selectedBlockId) ? remoteProgress.selectedBlockId : "icp"
+          } : localProgress);
+          setIsReady(true);
+        }
+      } catch {
+        if (isMounted) {
+          setProgress(localProgress);
+          setIsReady(true);
+        }
+      }
+    }
+
+    setIsReady(false);
+    void loadProgress();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storageKey, unitId]);
 
   useEffect(() => {
     if (isReady) {
       window.localStorage.setItem(storageKey, JSON.stringify(progress));
+      if (unitId) {
+        void fetch("/api/unit-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            unitId,
+            gameProgress: progress
+          })
+        }).catch(() => undefined);
+      }
     }
-  }, [isReady, progress, storageKey]);
+  }, [isReady, progress, storageKey, unitId]);
 
   const completedSet = useMemo(() => new Set(progress.completedMissions), [progress.completedMissions]);
   const solutionsSet = useMemo(() => new Set(progress.appliedSolutions), [progress.appliedSolutions]);
