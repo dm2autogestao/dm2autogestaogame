@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/firestore-admin";
 import { maskCnpj, maskEmail, maskPhone } from "@/lib/data-masking";
@@ -80,6 +81,30 @@ function serializeUnit(id: string, data: Record<string, unknown>) {
   };
 }
 
+async function ensureAuthUser(unit: ReturnType<typeof normalizeUnitPayload>) {
+  try {
+    const existing = await getAuth().getUserByEmail(unit.email);
+    await getAuth().updateUser(existing.uid, {
+      password: unit.password,
+      displayName: unit.unitName,
+      disabled: unit.status === "blocked"
+    });
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+
+    if (code !== "auth/user-not-found") {
+      throw error;
+    }
+
+    await getAuth().createUser({
+      email: unit.email,
+      password: unit.password,
+      displayName: unit.unitName,
+      disabled: unit.status === "blocked"
+    });
+  }
+}
+
 export async function GET() {
   if (!requireMaster()) {
     return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
@@ -107,6 +132,7 @@ export async function POST(request: Request) {
 
   const password = hashPassword(unit.password);
   const status = isMaster ? unit.status : "pending";
+  await ensureAuthUser({ ...unit, status });
 
   await getDb().collection("units").doc(unit.cnpj).set({
     ...unit,
@@ -147,7 +173,11 @@ export async function PATCH(request: Request) {
   if (body.state !== undefined) nextData.state = unit.state;
   if (body.status !== undefined) nextData.status = unit.status;
   if (body.password !== undefined || body.resetPassword) {
-    const password = hashPassword(body.resetPassword ? "123456" : unit.password);
+    const nextPlainPassword = body.resetPassword ? "123456" : unit.password;
+    const password = hashPassword(nextPlainPassword);
+    if (unit.email) {
+      await ensureAuthUser({ ...unit, password: nextPlainPassword });
+    }
     nextData.password = FieldValue.delete();
     nextData.passwordHash = password.hash;
     nextData.passwordSalt = password.salt;

@@ -920,6 +920,22 @@ async function loginMasterOnServer(email: string, password: string) {
   return result.session as AuthSession;
 }
 
+async function recoverFranchiseePassword(identifier: string) {
+  const response = await fetch("/api/auth/recover", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier })
+  });
+  const result = await readJsonResponse(response, "Nao foi possivel enviar o e-mail de recuperacao agora.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Nao foi possivel enviar o e-mail de recuperacao agora.");
+  }
+
+  return result.message as string;
+}
+
 function normalizeCnpj(value: string) {
   return value.replace(/\D/g, "").slice(0, 14);
 }
@@ -987,7 +1003,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     password: "",
     confirmPassword: ""
   });
-  const [recover, setRecover] = useState({ identifier: "", password: "", confirmPassword: "" });
+  const [recover, setRecover] = useState({ identifier: "" });
 
   async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1040,6 +1056,52 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       return;
     }
 
+    const units = await loadRegisteredUnits();
+    if (units.some((unit) => unit.cnpj === cnpj)) {
+      setMessage("Este CNPJ ja possui cadastro. Use login ou recuperacao de senha.");
+      return;
+    }
+
+    const unit: RegisteredUnit = {
+      unitName: register.unitName.trim(),
+      responsibleName: register.responsibleName.trim(),
+      cnpj,
+      email: register.email.trim().toLowerCase(),
+      phone: register.phone.trim(),
+      city: register.city.trim(),
+      state: register.state.trim().toUpperCase(),
+      password: register.password,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const nextUnits = [...units, unit];
+    saveRegisteredUnits(nextUnits);
+    await saveUnitToDb(unit);
+    setView("login");
+    setMessage("Cadastro enviado. A franqueadora precisa aprovar a unidade para liberar o acesso.");
+  }
+
+  async function submitRecover(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (role === "master") {
+      setMessage("A recuperacao da conta master deve ser solicitada ao administrador.");
+      return;
+    }
+
+    try {
+      const recoveryMessage = await recoverFranchiseePassword(recover.identifier);
+      setView("login");
+      setMessage(recoveryMessage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar o e-mail de recuperacao agora.");
+    }
+  }
+
+    /*
     const units = await loadRegisteredUnits();
     if (units.some((unit) => unit.cnpj === cnpj)) {
       setMessage("Este CNPJ já possui cadastro. Use login ou recuperação de senha.");
@@ -1098,7 +1160,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     await updateUnitInDb(nextUnits[unitIndex].cnpj, { password: recover.password });
     setView("login");
     setMessage("Senha atualizada. Entre com CNPJ ou e-mail e a nova senha.");
-  }
+    */
+  // Bloco antigo de recuperacao mantido comentado.
 
   function switchRole(nextRole: AuthRole) {
     setRole(nextRole);
@@ -1216,12 +1279,9 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
             {view === "recover" ? (
               <form onSubmit={submitRecover} className="grid gap-3">
                 <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "master@franquia.com"} />
-                {role === "franchisee" ? (
-                  <>
-                    <AuthInput icon={KeyRound} label="Nova senha" type="password" value={recover.password} onChange={(value) => setRecover((current) => ({ ...current, password: value }))} placeholder="Minimo 6 caracteres" />
-                    <AuthInput icon={KeyRound} label="Confirmar nova senha" type="password" value={recover.confirmPassword} onChange={(value) => setRecover((current) => ({ ...current, confirmPassword: value }))} placeholder="Repita a senha" />
-                  </>
-                ) : null}
+                <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
+                  Enviaremos um link de redefinicao para o e-mail cadastrado da unidade.
+                </p>
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
                   <KeyRound className="h-4 w-4" />
                   Recuperar senha
