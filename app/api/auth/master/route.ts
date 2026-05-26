@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const masterPassword = process.env.MASTER_PASSWORD ?? "master123";
 
     if (email !== masterEmail || password !== masterPassword) {
-      return NextResponse.json({ error: "Acesso master nao encontrado." }, { status: 401 });
+      return NextResponse.json({ error: "Acesso master não encontrado." }, { status: 401 });
     }
 
     const response = NextResponse.json({
@@ -34,6 +34,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("Master login failed", error);
-    return NextResponse.json({ error: "Nao foi possivel validar o acesso agora. Tente novamente em alguns segundos." }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível validar o acesso agora. Tente novamente em alguns segundos." }, { status: 500 });
   }
 }

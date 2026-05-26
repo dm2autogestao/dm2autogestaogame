@@ -268,7 +268,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <ProgressBar value={game.executionPercent} color={game.currentLevel.color} label="Evolucao da unidade" />
+                  <ProgressBar value={game.executionPercent} color={game.currentLevel.color} label="Evolução da unidade" />
                 </div>
               </section>
 
@@ -300,11 +300,11 @@ export default function Home() {
                   </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1.5fr_1fr]">
-                    <StageColumn title="Pilar 1" subtitle="Estrategia">
+                    <StageColumn title="Pilar 1" subtitle="Estratégia">
                       <JourneyMiniCard blockId="icp" onStart={openMissions} progress={game.blockProgress} />
                     </StageColumn>
 
-                    <StageColumn title="Pilar 2" subtitle="Canais de Captacao">
+                    <StageColumn title="Pilar 2" subtitle="Canais de Captação">
                       <div className="grid gap-3 sm:grid-cols-2">
                         {captureChannels.map((channel) => (
                           <JourneyMiniCard key={channel.id} blockId={channel.id} onStart={openMissions} progress={game.blockProgress} />
@@ -312,7 +312,7 @@ export default function Home() {
                       </div>
                     </StageColumn>
 
-                    <StageColumn title="Pilar 3" subtitle="Execucao">
+                    <StageColumn title="Pilar 3" subtitle="Execução">
                       <JourneyMiniCard blockId="vendedor" onStart={openMissions} progress={game.blockProgress} />
                       <div className="mt-3 grid gap-3">
                         <JourneyMiniCard blockId="indicadores" onStart={openMissions} progress={game.blockProgress} compact />
@@ -362,7 +362,7 @@ export default function Home() {
                   <ScoreCard label="XP ganho" value={`${selectedMissionXp}`} icon={Sparkles} color={selectedBlock.accent} />
                   <ScoreCard label="Metas" value={`${selectedBlockProgress?.completed ?? 0}/${selectedBlockProgress?.total ?? 0}`} icon={CheckCircle2} color="#58CC02" />
                   <ScoreCard label="Streak exemplo" value="7 dias" icon={Flame} color="#F97316" />
-                  <ScoreCard label="Status" value={selectedBlockProgress?.status === "done" ? "Concluido" : selectedBlockProgress?.status === "locked" ? "Bloqueado" : "Em jogo"} icon={Trophy} color="#FFC800" />
+                  <ScoreCard label="Status" value={selectedBlockProgress?.status === "done" ? "Concluído" : selectedBlockProgress?.status === "locked" ? "Bloqueado" : "Em jogo"} icon={Trophy} color="#FFC800" />
                 </div>
 
                 {(selectedBlockProgress?.percent ?? 0) === 100 ? (
@@ -371,7 +371,7 @@ export default function Home() {
                       <Medal className="h-7 w-7" />
                     </div>
                     <div>
-                      <p className="font-black text-amber-800">Parabens, fase completa!</p>
+                      <p className="font-black text-amber-800">Parabéns, fase completa!</p>
                       <p className="text-xs font-bold text-amber-700">{medals.find((medal) => medal.blockId === selectedBlock.id)?.title ?? "Medalha desbloqueada"}</p>
                     </div>
                   </div>
@@ -427,7 +427,7 @@ export default function Home() {
               <section className="overflow-hidden rounded-[32px] border border-emerald-900/10 bg-gradient-to-br from-ink to-emerald-900 p-5 text-white shadow-soft">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-white/50">Metricas da operacao</p>
+                    <p className="text-xs font-black uppercase tracking-wide text-white/50">Métricas da operação</p>
                     <h1 className="mt-1 text-5xl font-black">{score}%</h1>
                     <p className="mt-2 text-sm font-bold text-white/75">{diagnosis}</p>
                   </div>
@@ -441,7 +441,7 @@ export default function Home() {
                     <p className="mt-1 text-2xl font-black">{game.totalXp}</p>
                   </div>
                   <div className="rounded-3xl bg-white/10 p-4">
-                    <p className="text-xs font-black uppercase text-white/50">Execucao</p>
+                    <p className="text-xs font-black uppercase text-white/50">Execução</p>
                     <p className="mt-1 text-2xl font-black">{game.executionPercent}%</p>
                   </div>
                   <div className="rounded-3xl bg-white/10 p-4 sm:col-span-2">
@@ -452,7 +452,7 @@ export default function Home() {
               </section>
 
               <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-                <h2 className="mb-4 text-xl font-black text-ink">Metricas por blocos</h2>
+                <h2 className="mb-4 text-xl font-black text-ink">Métricas por blocos</h2>
                 <div className="space-y-3">
                   {scoreBlocks.map((area) => (
                     <ProgressBar key={area.id} value={area.score} color={area.color} label={area.label} />
@@ -497,7 +497,7 @@ export default function Home() {
                 </div>
 
                 <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-                  <h2 className="mb-1 text-xl font-black text-ink">Posicao da unidade</h2>
+                  <h2 className="mb-1 text-xl font-black text-ink">Posição da unidade</h2>
                   <p className="mb-3 text-xs font-bold text-slate-500">Sem unidades mockadas. Este card mostra apenas o desempenho registrado neste navegador.</p>
                   <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex items-center gap-3">
@@ -509,7 +509,7 @@ export default function Home() {
                       <XPBadge xp={game.totalXp} />
                     </div>
                     <div className="mt-4">
-                      <ProgressBar value={game.executionPercent} color={game.currentLevel.color} label="Execucao da unidade" />
+                      <ProgressBar value={game.executionPercent} color={game.currentLevel.color} label="Execução da unidade" />
                     </div>
                   </div>
                 </div>
@@ -525,10 +525,10 @@ export default function Home() {
                     <AlertTriangle className="h-8 w-8" />
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Guia de decisao</p>
-                    <h1 className="text-2xl font-black text-ink">Problema → diagnostico → acao → XP</h1>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Guia de decisão</p>
+                    <h1 className="text-2xl font-black text-ink">Problema → diagnóstico → ação → XP</h1>
                     <p className="mt-2 text-sm font-semibold text-slate-500">
-                      Escolha o gargalo, veja causas provaveis, aplique uma acao corretiva e acompanhe a metrica que precisa melhorar.
+                      Escolha o gargalo, veja causas prováveis, aplique uma ação corretiva e acompanhe a métrica que precisa melhorar.
                     </p>
                   </div>
                 </div>
@@ -537,17 +537,17 @@ export default function Home() {
               <section className="mt-5 grid gap-3 md:grid-cols-3">
                 <GuidanceCard
                   title="1. Ache a etapa"
-                  text="Olhe se o problema esta em lead, resposta, agenda, comparecimento, venda, indicacao ou rotina."
+                  text="Olhe se o problema está em lead, resposta, agenda, comparecimento, venda, indicação ou rotina."
                   icon={BarChart3}
                 />
                 <GuidanceCard
-                  title="2. Escolha uma acao"
-                  text="Nao tente corrigir tudo ao mesmo tempo. Aplique uma acao por semana e acompanhe a metrica."
+                  title="2. Escolha uma ação"
+                  text="Não tente corrigir tudo ao mêsmo tempo. Aplique uma ação por semana e acompanhe a métrica."
                   icon={ShieldAlert}
                 />
                 <GuidanceCard
                   title="3. Rode o ciclo"
-                  text="Meça o resultado em 7 dias. Se melhorou, padronize. Se nao melhorou, teste a proxima acao."
+                  text="Meça o resultado em 7 dias. Se melhorou, padronize. Se não melhorou, teste a próxima ação."
                   icon={Sparkles}
                 />
               </section>
@@ -572,14 +572,14 @@ export default function Home() {
                       <OpenProblemIcon className="h-7 w-7" />
                     </div>
                     <div>
-                      <p className="text-xs font-black uppercase tracking-wide text-slate-400">Diagnostico provavel</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-400">Diagnóstico provável</p>
                       <h2 className="text-xl font-black text-ink">{openProblem.title}</h2>
                       <p className="mt-1 text-xs font-black text-emerald-600">{openProblem.metric}</p>
                     </div>
                   </div>
 
                   <div className="mb-4 rounded-3xl bg-slate-50 p-4">
-                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Causas provaveis</p>
+                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Causas prováveis</p>
                     <div className="flex flex-wrap gap-2">
                       {openProblem.causes.map((cause) => (
                         <span key={cause} className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm">
@@ -846,7 +846,7 @@ async function fetchRegisteredUnitsFromDb() {
     credentials: "include"
   });
   if (!response.ok) {
-    throw new Error("Nao foi possivel carregar unidades.");
+    throw new Error("Não foi possível carregar unidades.");
   }
 
   const result = await response.json();
@@ -913,7 +913,7 @@ async function loginUnitOnServer(identifier: string, password: string, remember:
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier, password, remember })
   });
-  const result = await readJsonResponse(response, "Nao foi possivel validar o login agora. Tente novamente em alguns segundos.");
+  const result = await readJsonResponse(response, "Não foi possível validar o login agora. Tente novamente em alguns segundos.");
 
   if (!response.ok) {
     throw new Error(result.error ?? "CNPJ, e-mail ou senha incorretos.");
@@ -929,10 +929,10 @@ async function loginMasterOnServer(email: string, password: string, remember: bo
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, remember })
   });
-  const result = await readJsonResponse(response, "Nao foi possivel validar o acesso master agora. Tente novamente em alguns segundos.");
+  const result = await readJsonResponse(response, "Não foi possível validar o acesso master agora. Tente novamente em alguns segundos.");
 
   if (!response.ok) {
-    throw new Error(result.error ?? "Acesso master nao encontrado.");
+    throw new Error(result.error ?? "Acesso master não encontrado.");
   }
 
   return result.session as AuthSession;
@@ -940,7 +940,7 @@ async function loginMasterOnServer(email: string, password: string, remember: bo
 
 async function loginWithGoogleOnServer(role: AuthRole, remember: boolean) {
   if (!firebaseAuth) {
-    throw new Error("Firebase nao esta configurado para login com Google.");
+    throw new Error("Firebase não está configurado para login com Google.");
   }
 
   const credential = await signInWithPopup(firebaseAuth, googleProvider);
@@ -951,11 +951,11 @@ async function loginWithGoogleOnServer(role: AuthRole, remember: boolean) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, role, remember })
   });
-  const result = await readJsonResponse(response, "Nao foi possivel validar o login com Google agora.");
+  const result = await readJsonResponse(response, "Não foi possível validar o login com Google agora.");
 
   if (!response.ok) {
     await signOut(firebaseAuth).catch(() => undefined);
-    throw new Error(result.error ?? "Nao foi possivel validar o login com Google agora.");
+    throw new Error(result.error ?? "Não foi possível validar o login com Google agora.");
   }
 
   return role === "master" ? (result.session as AuthSession) : (result.unit as RegisteredUnit);
@@ -968,10 +968,10 @@ async function recoverFranchiseePassword(identifier: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier })
   });
-  const result = await readJsonResponse(response, "Nao foi possivel enviar o e-mail de recuperacao agora.");
+  const result = await readJsonResponse(response, "Não foi possível enviar o e-mail de recuperação agora.");
 
   if (!response.ok) {
-    throw new Error(result.error ?? "Nao foi possivel enviar o e-mail de recuperacao agora.");
+    throw new Error(result.error ?? "Não foi possível enviar o e-mail de recuperação agora.");
   }
 
   return result.message as string;
@@ -1056,7 +1056,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       try {
         onAuthenticated(await loginMasterOnServer(login.email, login.password, rememberLogin), rememberLogin);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Acesso master nao encontrado.");
+        setMessage(error instanceof Error ? error.message : "Acesso master não encontrado.");
       }
       return;
     }
@@ -1112,7 +1112,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
         rememberLogin
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel entrar com Google agora.");
+      setMessage(error instanceof Error ? error.message : "Não foi possível entrar com Google agora.");
     } finally {
       setGoogleLoading(false);
     }
@@ -1135,7 +1135,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
     const units = await loadRegisteredUnits();
     if (units.some((unit) => unit.cnpj === cnpj)) {
-      setMessage("Este CNPJ ja possui cadastro. Use login ou recuperacao de senha.");
+      setMessage("Este CNPJ já possui cadastro. Use login ou recuperação de senha.");
       return;
     }
 
@@ -1165,7 +1165,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     setMessage("");
 
     if (role === "master") {
-      setMessage("A recuperacao da conta master deve ser solicitada ao administrador.");
+      setMessage("A recuperação da conta master deve ser solicitada ao administrador.");
       return;
     }
 
@@ -1174,7 +1174,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       setView("login");
       setMessage(recoveryMessage);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel enviar o e-mail de recuperacao agora.");
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar o e-mail de recuperação agora.");
     }
   }
 
@@ -1238,7 +1238,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     setView("login");
     setMessage("Senha atualizada. Entre com CNPJ ou e-mail e a nova senha.");
     */
-  // Bloco antigo de recuperacao mantido comentado.
+  // Bloco antigo de recuperação mantido comentado.
 
   function switchRole(nextRole: AuthRole) {
     setRole(nextRole);
@@ -1375,7 +1375,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
               <form onSubmit={submitRecover} className="grid gap-3">
                 <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "master@franquia.com"} />
                 <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
-                  Enviaremos um link de redefinicao para o e-mail cadastrado da unidade.
+                  Enviaremos um link de redefinição para o e-mail cadastrado da unidade.
                 </p>
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
                   <KeyRound className="h-4 w-4" />
@@ -1454,7 +1454,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       })
       .catch(() => {
         setUnits([]);
-        setMasterNotice("Sua sessao master precisa ser renovada. Clique em sair e entre novamente como franqueadora para carregar as unidades.");
+        setMasterNotice("Sua sessão master precisa ser renovada. Clique em sair e entre novamente como franqueadora para carregar as unidades.");
       });
   }, []);
 
@@ -1468,7 +1468,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       unit.cnpj === cnpj ? { ...unit, status, updatedAt: new Date().toISOString() } : unit
     ));
     persistUnits(nextUnits);
-    void updateUnitInDb(cnpj, { status }).catch(() => setMasterNotice("Status atualizado localmente, mas o banco nao confirmou a alteracao."));
+    void updateUnitInDb(cnpj, { status }).catch(() => setMasterNotice("Status atualizado localmente, mas o banco não confirmou a alteração."));
     setMasterNotice(status === "active" ? "Unidade aprovada e liberada para login." : status === "blocked" ? "Unidade bloqueada." : "Unidade voltou para pendente.");
   }
 
@@ -1502,7 +1502,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
     };
 
     persistUnits([...units, nextUnit]);
-    void saveUnitToDb(nextUnit).catch(() => setMasterNotice("Unidade salva localmente, mas o banco nao confirmou o cadastro."));
+    void saveUnitToDb(nextUnit).catch(() => setMasterNotice("Unidade salva localmente, mas o banco não confirmou o cadastro."));
     setSelectedUnitCnpj(cnpj);
     setMasterNotice("Unidade cadastrada e liberada para login.");
     return "";
@@ -1546,7 +1546,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       city: form.city.trim(),
       state: form.state.trim().toUpperCase(),
       ...(form.password ? { password: form.password } : {})
-    }).catch(() => setMasterNotice("Dados atualizados localmente, mas o banco nao confirmou a alteracao."));
+    }).catch(() => setMasterNotice("Dados atualizados localmente, mas o banco não confirmou a alteração."));
     setSelectedUnitCnpj(cnpj);
     setEditUnitCnpj(null);
     setMasterNotice("Dados do franqueado atualizados.");
@@ -1556,7 +1556,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   function resetUnitPassword(cnpj: string) {
     const nextUnits = units.map((unit) => unit.cnpj === cnpj ? { ...unit, updatedAt: new Date().toISOString() } : unit);
     persistUnits(nextUnits);
-    void updateUnitInDb(cnpj, { resetPassword: true }).catch(() => setMasterNotice("Senha resetada localmente, mas o banco nao confirmou a alteracao."));
+    void updateUnitInDb(cnpj, { resetPassword: true }).catch(() => setMasterNotice("Senha resetada localmente, mas o banco não confirmou a alteração."));
     setMasterNotice("Senha resetada para 123456.");
   }
 
@@ -1569,7 +1569,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
     }
 
     persistUnits(units.filter((item) => item.cnpj !== cnpj));
-    void deleteUnitFromDb(cnpj).catch(() => setMasterNotice("Franqueado removido localmente, mas o banco nao confirmou a exclusao."));
+    void deleteUnitFromDb(cnpj).catch(() => setMasterNotice("Franqueado removido localmente, mas o banco não confirmou a exclusão."));
     setSelectedUnitCnpj("");
     setDetailUnitCnpj(null);
     setEditUnitCnpj(null);
@@ -1594,7 +1594,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       <div className="mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-5 sm:px-6 md:flex-row lg:px-8">
         <SideNavigation
           title="Franqueadora"
-          subtitle={session.unitName ?? "Visao master"}
+          subtitle={session.unitName ?? "Visão master"}
           items={masterNavItems}
           active={masterTab}
           onChange={setMasterTab}
@@ -1606,10 +1606,10 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
           <section className="overflow-hidden rounded-[34px] border border-white/80 bg-white/90 shadow-soft backdrop-blur">
             <div className="grid gap-4 p-5 lg:grid-cols-[1.15fr_0.85fr]">
               <div>
-                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Visao master</p>
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Visão master</p>
                 <h1 className="mt-1 text-2xl font-black text-ink">Progresso, campanhas e suporte da rede.</h1>
                 <p className="mt-2 text-sm font-bold text-slate-500">
-                  Acompanhe as unidades por area e abra detalhes sem misturar os controles.
+                  Acompanhe as unidades por área e abra detalhes sem misturar os controles.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1631,9 +1631,9 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
             <Screen key="master-overview">
               <section className="mt-5 grid gap-3 md:grid-cols-4">
                 <MasterMetricTile label="Unidades" value={`${units.length}`} helper={`${activeUnits.length} ativas`} icon={Building2} color="#14B8A6" />
-                <MasterMetricTile label="Score medio" value={`${averageScore}%`} helper={strongestUnit ? `Melhor: ${strongestUnit.unit.unitName}` : "Sem unidades"} icon={Trophy} color="#FFC800" />
-                <MasterMetricTile label="ROI medio" value={formatMultiplier(averageRoi)} helper={bestRoiUnit ? `Melhor: ${bestRoiUnit.unit.unitName}` : "Sem campanhas"} icon={BarChart3} color="#1CB0F6" />
-                <MasterMetricTile label="Alertas" value={`${criticalUnits.length}`} helper="Score baixo ou ROI critico" icon={ShieldAlert} color="#EF4444" />
+                <MasterMetricTile label="Score médio" value={`${averageScore}%`} helper={strongestUnit ? `Melhor: ${strongestUnit.unit.unitName}` : "Sem unidades"} icon={Trophy} color="#FFC800" />
+                <MasterMetricTile label="ROI médio" value={formatMultiplier(averageRoi)} helper={bestRoiUnit ? `Melhor: ${bestRoiUnit.unit.unitName}` : "Sem campanhas"} icon={BarChart3} color="#1CB0F6" />
+                <MasterMetricTile label="Alertas" value={`${criticalUnits.length}`} helper="Score baixo ou ROI crítico" icon={ShieldAlert} color="#EF4444" />
               </section>
 
               <section className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -1837,21 +1837,21 @@ function MasterAnalytics({ summaries, onOpenDetails }: { summaries: MasterUnitSu
         <MasterMetricTile
           label="Estado destaque"
           value={analytics.bestState?.label ?? "Sem estado"}
-          helper={analytics.bestState ? `${analytics.bestState.average}% de score medio` : "Preencha estado"}
+          helper={analytics.bestState ? `${analytics.bestState.average}% de score médio` : "Preencha estado"}
           icon={MapPin}
           color="#14B8A6"
         />
         <MasterMetricTile
           label="Cidade destaque"
           value={analytics.bestCity?.label ?? "Sem cidade"}
-          helper={analytics.bestCity ? `${analytics.bestCity.average}% de score medio` : "Preencha cidade"}
+          helper={analytics.bestCity ? `${analytics.bestCity.average}% de score médio` : "Preencha cidade"}
           icon={Building2}
           color="#1CB0F6"
         />
         <MasterMetricTile
           label="Melhor plataforma"
           value={analytics.bestPlatform?.label ?? "Sem campanhas"}
-          helper={analytics.bestPlatform ? `${formatMultiplier(analytics.bestPlatform.averageRoi)} de ROI medio` : "Preencha ROI"}
+          helper={analytics.bestPlatform ? `${formatMultiplier(analytics.bestPlatform.averageRoi)} de ROI médio` : "Preencha ROI"}
           icon={PieChart}
           color="#8B5CF6"
         />
@@ -1898,7 +1898,7 @@ function MasterAnalytics({ summaries, onOpenDetails }: { summaries: MasterUnitSu
 
         <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Plataformas de campanha</p>
-          <h2 className="text-xl font-black text-ink">ROI medio por plataforma</h2>
+          <h2 className="text-xl font-black text-ink">ROI médio por plataforma</h2>
           <div className="mt-4 grid gap-3">
             {analytics.platformRows.length ? (
               analytics.platformRows.map((platform) => (
@@ -2144,7 +2144,7 @@ function MasterPendingApprovals({
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-amber-700">Cadastros pendentes</p>
           <h2 className="text-xl font-black text-ink">Aprovar novas unidades</h2>
-          <p className="mt-1 text-sm font-bold text-amber-900">Unidades cadastradas pelo acesso de franqueado aguardam liberacao da franqueadora.</p>
+          <p className="mt-1 text-sm font-bold text-amber-900">Unidades cadastradas pelo acesso de franqueado aguardam liberação da franqueadora.</p>
         </div>
         <XPBadge xp={summaries.length} label="pendentes" tone="gold" />
       </div>
@@ -2369,7 +2369,7 @@ function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">ROI de campanha</p>
-            <h3 className="text-lg font-black text-ink">{summary.campaignRoi.nomeCampanha.trim() || "Campanha nao preenchida"}</h3>
+            <h3 className="text-lg font-black text-ink">{summary.campaignRoi.nomeCampanha.trim() || "Campanha não preenchida"}</h3>
             <p className="text-xs font-bold text-slate-500">{summary.campaignRoi.canalCampanha}</p>
           </div>
           <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: campaignStatus.color }}>
@@ -2418,7 +2418,7 @@ function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
           <div className="rounded-2xl bg-white p-3 shadow-sm">
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">Prioridade atual</p>
             <p className="mt-1 text-sm font-black text-ink">{summary.weeklyPlan?.priority || "Sem prioridade preenchida"}</p>
-            <p className="mt-2 text-xs font-bold text-slate-500">{summary.weeklyPlan?.correctiveAction || "Sem acao corretiva registrada"}</p>
+            <p className="mt-2 text-xs font-bold text-slate-500">{summary.weeklyPlan?.correctiveAction || "Sem ação corretiva registrada"}</p>
           </div>
           <div className="mt-3 grid gap-2">
             {summary.history.length ? (
@@ -2537,7 +2537,7 @@ function formatLocation(unit: RegisteredUnit) {
     return `${city} - ${state}`;
   }
 
-  return city || state || "Localizacao nao informada";
+  return city || state || "Localização não informada";
 }
 
 function getMasterAnalytics(summaries: MasterUnitSummary[]) {
@@ -2650,7 +2650,7 @@ function getNetworkCorrectiveActions(summaries: MasterUnitSummary[]) {
     {
       title: "Campanhas com ROI baixo",
       reason: lowRoiCount ? `${lowRoiCount} unidade(s) precisam revisar retorno de campanha.` : "ROI da rede sem alerta crítico no momento.",
-      steps: ["revisar público", "revisar criativo", "validar promessa", "monitorar CPV"]
+      steps: ["revisar público", "revisar criativo", "validar promêssa", "monitorar CPV"]
     },
     {
       title: "Unidades com pouco progresso",
@@ -2810,8 +2810,8 @@ function getNextMove(inputs: CommercialInputs, weakestBlockId: string | undefine
 
   if (totals.leads === 0) {
     return {
-      title: "Ativar captacao",
-      reason: "Ainda nao existe volume de leads registrado. Sem topo de funil, a unidade nao consegue avaliar o resto.",
+      title: "Ativar captação",
+      reason: "Ainda não existe volume de leads registrado. Sem topo de funil, a unidade não consegue avaliar o resto.",
       action: "Escolha um canal foco e registre uma meta simples de leads para esta semana.",
       measure: "Leads gerados por canal"
     };
@@ -2821,7 +2821,7 @@ function getNextMove(inputs: CommercialInputs, weakestBlockId: string | undefine
     return {
       title: "Melhorar abordagem",
       reason: "O gargalo parece estar entre conversa e agenda.",
-      action: "Revise script, reduza atrito e ofereca uma chamada/diagnostico mais claro.",
+      action: "Revise script, reduza atrito e ofereça uma chamada/diagnóstico mais claro.",
       measure: "Taxa de agendamento"
     };
   }
@@ -2829,8 +2829,8 @@ function getNextMove(inputs: CommercialInputs, weakestBlockId: string | undefine
   if (totals.comparecimentos === 0 || totals.comparecimentos / Math.max(totals.agendamentos, 1) < 0.55) {
     return {
       title: "Aumentar comparecimento",
-      reason: "As pessoas agendam, mas nao aparecem em volume suficiente.",
-      action: "Confirme presenca, envie lembrete e reforce o valor da reuniao.",
+      reason: "As pessoas agendam, mas não aparecem em volume suficiente.",
+      action: "Confirme presença, envie lembrete e reforce o valor da reunião.",
       measure: "Taxa de comparecimento"
     };
   }
@@ -2839,25 +2839,25 @@ function getNextMove(inputs: CommercialInputs, weakestBlockId: string | undefine
     return {
       title: "Revisar fechamento",
       reason: "O gargalo parece estar depois do comparecimento.",
-      action: "Revise diagnostico, objecoes, proposta e motivo de perda.",
+      action: "Revise diagnóstico, objeções, proposta e motivo de perda.",
       measure: "Taxa de venda"
     };
   }
 
   if (totals.indicacoes < 5 || weakestBlockId === "ativo-quente") {
     return {
-      title: "Ativar indicacao e recompra",
+      title: "Ativar indicação e recompra",
       reason: "A unidade pode crescer com clientes atuais, antigos e satisfeitos.",
-      action: "Crie rotina de pedido de indicacao, reativacao e renovacao.",
-      measure: "Indicacoes e recompras no mes"
+      action: "Crie rotina de pedido de indicação, reativação e renovação.",
+      measure: "Indicações e recompras no mês"
     };
   }
 
   return {
     title: "Padronizar o que funcionou",
     reason: fallbackDiagnosis,
-    action: "Transforme a melhor acao da semana em rotina e acompanhe por 7 dias.",
-    measure: "Score, XP e metrica foco"
+    action: "Transforme a melhor ação da semana em rotina e acompanhe por 7 dias.",
+    measure: "Score, XP e métrica foco"
   };
 }
 
@@ -2869,7 +2869,7 @@ function NextMoveCard({ nextMove }: { nextMove: NextMove }) {
           <TrendingUp className="h-6 w-6" />
         </div>
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Proximo movimento</p>
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Próximo movimento</p>
           <h2 className="text-xl font-black text-ink">{nextMove.title}</h2>
         </div>
       </div>
@@ -2906,15 +2906,15 @@ function WeeklyPlanCard({
         </div>
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Plano da semana</p>
-          <h2 className="text-xl font-black text-ink">Foco de execucao</h2>
+          <h2 className="text-xl font-black text-ink">Foco de execução</h2>
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField label="Prioridade" value={plan.priority} placeholder="Ex: melhorar agendamento" onChange={(value) => onUpdate("priority", value)} />
         <SelectField label="Canal foco" value={plan.focusChannel} onChange={(value) => onUpdate("focusChannel", value)} />
         <TextField label="Meta principal" value={plan.mainGoal} placeholder="Ex: 20 agendamentos" onChange={(value) => onUpdate("mainGoal", value)} />
-        <TextField label="Acao corretiva" value={plan.correctiveAction} placeholder="Ex: revisar script" onChange={(value) => onUpdate("correctiveAction", value)} />
-        <TextField label="Responsavel" value={plan.owner} placeholder="Ex: Vendedor / Franqueado" onChange={(value) => onUpdate("owner", value)} />
+        <TextField label="Ação corretiva" value={plan.correctiveAction} placeholder="Ex: revisar script" onChange={(value) => onUpdate("correctiveAction", value)} />
+        <TextField label="Responsável" value={plan.owner} placeholder="Ex: Vendedor / Franqueado" onChange={(value) => onUpdate("owner", value)} />
         <label className="block">
           <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Prazo</span>
           <input
@@ -2933,7 +2933,7 @@ function WeeklyPlanCard({
           >
             <option>A fazer</option>
             <option>Em andamento</option>
-            <option>Concluido</option>
+            <option>Concluído</option>
           </select>
         </label>
       </div>
@@ -2991,7 +2991,7 @@ function DailyChecklistCard({
     <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Checklist diario</p>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Checklist diário</p>
           <h2 className="text-xl font-black text-ink">Rotina do vendedor</h2>
         </div>
         <XPBadge xp={progress} label="%" tone="green" />
@@ -3038,7 +3038,7 @@ function HistoryCard({
     <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Historico simples</p>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Histórico simples</p>
           <h2 className="text-xl font-black text-ink">Fechamento semanal</h2>
         </div>
         <button
@@ -3050,7 +3050,7 @@ function HistoryCard({
         </button>
       </div>
       <div className="mb-4 grid grid-cols-3 gap-2">
-        <MiniMetric label="Metrica" value={`${score}%`} />
+        <MiniMetric label="Métrica" value={`${score}%`} />
         <MiniMetric label="XP" value={`${xp}`} />
         <MiniMetric label="Gargalo" value={bottleneck} />
       </div>
@@ -3063,12 +3063,12 @@ function HistoryCard({
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600">{entry.score}%</span>
               </div>
               <p className="mt-2 text-sm font-bold text-slate-600">Gargalo: {entry.bottleneck}</p>
-              <p className="mt-1 text-sm font-bold text-slate-600">Acao: {entry.action}</p>
+              <p className="mt-1 text-sm font-bold text-slate-600">Ação: {entry.action}</p>
             </div>
           ))
         ) : (
           <div className="rounded-3xl bg-slate-50 p-4 text-sm font-bold text-slate-500">
-            Nenhuma semana fechada ainda. Quando fechar, o historico mostra score, XP, gargalo e acao escolhida.
+            Nenhuma semana fechada ainda. Quando fechar, o historico mostra score, XP, gargalo e ação escolhida.
           </div>
         )}
       </div>
@@ -3116,7 +3116,7 @@ function JourneyMiniCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-black text-ink">{block.name.replace("Pilar 1: ", "").replace("Pilar 3: ", "")}</p>
-          <p className="text-xs font-bold text-slate-500">{locked ? "Desbloqueie concluindo ICP" : `${block.percent}% concluido`}</p>
+          <p className="text-xs font-bold text-slate-500">{locked ? "Desbloqueie concluindo ICP" : `${block.percent}% concluído`}</p>
         </div>
       </div>
       <div className="mt-3">
@@ -3138,8 +3138,8 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
           </div>
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">{channel.subtitle}</p>
-            <h2 className="text-xl font-black text-ink">Exemplo de funil do metodo</h2>
-            <p className="text-xs font-bold text-slate-500">Referencia visual, nao dado real da unidade.</p>
+            <h2 className="text-xl font-black text-ink">Exemplo de funil do método</h2>
+            <p className="text-xs font-bold text-slate-500">Referência visual, não ? dado real da unidade.</p>
           </div>
         </div>
         <FunnelPyramid steps={channel.funnel} color={channel.accent} />
@@ -3147,8 +3147,8 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
       <div className="space-y-4">
         <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-          <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referencia</h2>
-          <p className="mb-3 text-xs font-bold text-slate-500">Use como guia do metodo. Os numeros reais ficam na aba Metricas, em Dados da unidade.</p>
+          <h2 className="mb-1 text-xl font-black text-ink">Metas sugeridas e indicadores de referência</h2>
+          <p className="mb-3 text-xs font-bold text-slate-500">Use como guia do método. Os números reais ficam na aba Métricas, em Dados da unidade.</p>
           <div className="mb-4 flex flex-wrap gap-2">
             {channel.goals.map((goal) => (
               <span key={goal} className="rounded-full bg-limepop/40 px-3 py-1 text-xs font-black text-emerald-700">
@@ -3165,8 +3165,8 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
         {channel.formulas ? (
           <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-          <h2 className="mb-1 text-xl font-black text-ink">Formulas do metodo</h2>
-          <p className="mb-3 text-xs font-bold text-slate-500">As formulas calculam os dados reais preenchidos na area Dados da unidade.</p>
+          <h2 className="mb-1 text-xl font-black text-ink">Fórmulas do método</h2>
+          <p className="mb-3 text-xs font-bold text-slate-500">As fórmulas calculam os dados reais preenchidos na área Dados da unidade.</p>
             <div className="space-y-2">
               {channel.formulas.map((formula) => (
                 <div key={formula.label} className="rounded-2xl bg-slate-50 p-3 text-sm font-black text-slate-700">
@@ -3179,8 +3179,8 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
         {channel.channels ? (
           <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-          <h2 className="mb-1 text-xl font-black text-ink">Canais possiveis</h2>
-          <p className="mb-3 text-xs font-bold text-slate-500">Lista de opcoes do metodo, nao canais ja executados pela unidade.</p>
+          <h2 className="mb-1 text-xl font-black text-ink">Canais possíveis</h2>
+          <p className="mb-3 text-xs font-bold text-slate-500">Lista de opções do método, não canais já executados pela unidade.</p>
             <div className="flex flex-wrap gap-2">
               {channel.channels.map((item) => (
                 <span key={item} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
@@ -3193,7 +3193,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
         {channel.notes ? (
           <div className="rounded-[28px] border border-sky-200 bg-sky-50 p-5 shadow-sm">
-            <h2 className="mb-3 text-xl font-black text-sky-900">Notas praticas</h2>
+            <h2 className="mb-3 text-xl font-black text-sky-900">Notas pr?ticas</h2>
             <div className="space-y-2">
               {channel.notes.map((note) => (
                 <p key={note} className="text-sm font-bold text-sky-800">{note}</p>
@@ -3203,8 +3203,8 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
         ) : null}
 
         <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-          <h2 className="mb-1 text-xl font-black text-ink">Intervencoes recomendadas</h2>
-          <p className="mb-3 text-xs font-bold text-slate-500">Acoes sugeridas quando a metrica real indicar gargalo.</p>
+          <h2 className="mb-1 text-xl font-black text-ink">Intervenções recomendadas</h2>
+          <p className="mb-3 text-xs font-bold text-slate-500">Ações sugeridas quando a métrica real indicar gargalo.</p>
           <div className="space-y-3">
             {channel.interventions.map((intervention) => (
               <div key={intervention.trigger} className="rounded-3xl bg-slate-50 p-4">
@@ -3261,9 +3261,9 @@ function CommercialDataPanel({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Dados da unidade</p>
-          <h2 className="text-xl font-black text-ink">Onde o cliente insere os numeros reais</h2>
+          <h2 className="text-xl font-black text-ink">Onde o cliente insere os números reais</h2>
           <p className="mt-1 text-sm font-semibold text-slate-500">
-            Esta e a area oficial de dados reais da unidade. Preencha funil, investimento e receita por canal; o navegador salva sozinho.
+            Esta é a área oficial de dados reais da unidade. Preencha funil, investimento e receita por canal; o navegador salva sozinho.
           </p>
         </div>
         <div className="hidden rounded-2xl bg-limepop/50 px-3 py-2 text-xs font-black text-emerald-700 sm:block">
@@ -3281,7 +3281,7 @@ function CommercialDataPanel({
           className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-4 text-base font-black text-ink outline-none transition placeholder:text-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
         />
         <span className="mt-2 block text-xs font-bold text-emerald-800">
-          Esse nome aparece no topo e na posicao da unidade.
+          Esse nome aparece no topo e na posição da unidade.
         </span>
       </label>
 
@@ -3307,11 +3307,11 @@ function CommercialDataPanel({
                 <NumberField fieldKey={`${channel.id}-investimento`} label="Invest." value={input.investimento} onChange={(value) => onUpdate(channel.id, "investimento", value)} />
                 <NumberField fieldKey={`${channel.id}-receita`} label="Receita" value={input.receita} onChange={(value) => onUpdate(channel.id, "receita", value)} />
                 <NumberField fieldKey={`${channel.id}-leads`} label="Leads" value={input.leads} onChange={(value) => onUpdate(channel.id, "leads", value)} />
-                <NumberField fieldKey={`${channel.id}-interacoes`} label="Interacoes" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
+                <NumberField fieldKey={`${channel.id}-interacoes`} label="Interações" value={input.interacoes} onChange={(value) => onUpdate(channel.id, "interacoes", value)} />
                 <NumberField fieldKey={`${channel.id}-agendamentos`} label="Agendas" value={input.agendamentos} onChange={(value) => onUpdate(channel.id, "agendamentos", value)} />
                 <NumberField fieldKey={`${channel.id}-comparecimentos`} label="Comparec." value={input.comparecimentos} onChange={(value) => onUpdate(channel.id, "comparecimentos", value)} />
                 <NumberField fieldKey={`${channel.id}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate(channel.id, "vendas", value)} />
-                <NumberField fieldKey={`${channel.id}-indicacoes`} label="Indicacoes" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
+                <NumberField fieldKey={`${channel.id}-indicacoes`} label="Indicações" value={input.indicacoes} onChange={(value) => onUpdate(channel.id, "indicacoes", value)} />
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3340,7 +3340,7 @@ type RoasStatus = {
   bg: string;
 };
 
-const campaignChannelOptions = ["Meta Ads", "Google Ads", "TikTok Ads", "Indicacao patrocinada", "Outro"] as const;
+const campaignChannelOptions = ["Meta Ads", "Google Ads", "TikTok Ads", "Indicação patrocinada", "Outro"] as const;
 
 function getRoasStatus(roas: number | null): RoasStatus {
   if (roas === null) {
@@ -3355,8 +3355,8 @@ function getRoasStatus(roas: number | null): RoasStatus {
 
   if (roas < 1) {
     return {
-      label: "Critico",
-      message: "A campanha ainda nao esta retornando o investimento.",
+      label: "Crítico",
+      message: "A campanha ainda não está retornando o investimento.",
       xp: -50,
       color: "#EF4444",
       bg: "bg-red-50 border-red-200"
@@ -3365,8 +3365,8 @@ function getRoasStatus(roas: number | null): RoasStatus {
 
   if (roas < 2) {
     return {
-      label: "Atencao",
-      message: "A campanha esta proxima do empate, mas ainda precisa melhorar.",
+      label: "Atenção",
+      message: "A campanha está próxima do empate, mas ainda precisa melhorar.",
       xp: 20,
       color: "#F97316",
       bg: "bg-orange-50 border-orange-200"
@@ -3375,8 +3375,8 @@ function getRoasStatus(roas: number | null): RoasStatus {
 
   if (roas < 4) {
     return {
-      label: "Saudavel",
-      message: "A campanha ja gera retorno, mas ainda pode ser otimizada.",
+      label: "Saudável",
+      message: "A campanha já gera retorno, mas ainda pode ser otimizada.",
       xp: 80,
       color: "#1CB0F6",
       bg: "bg-sky-50 border-sky-200"
@@ -3386,7 +3386,7 @@ function getRoasStatus(roas: number | null): RoasStatus {
   if (roas < 6) {
     return {
       label: "Forte",
-      message: "A campanha esta performando bem e pode ser acompanhada para escala.",
+      message: "A campanha está performando bem e pode ser acompanhada para escala.",
       xp: 150,
       color: "#58CC02",
       bg: "bg-emerald-50 border-emerald-200"
@@ -3415,19 +3415,19 @@ function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calcul
   }
 
   if (lowRoas && cplHigh) {
-    return ["revisar publico", "revisar criativo", "revisar promessa", "validar ICP", "testar nova campanha"];
+    return ["revisar público", "revisar criativo", "revisar promêssa", "validar ICP", "testar nova campanha"];
   }
 
   if (lowRoas && manyLeadsFewSchedules) {
-    return ["revisar abordagem comercial", "revisar qualificacao", "melhorar script", "reduzir atrito para agendar"];
+    return ["revisar abordagem comercial", "revisar qualificação", "melhorar script", "reduzir atrito para agendar"];
   }
 
   if (lowRoas && manySchedulesFewShows) {
-    return ["criar lembrete automatico", "confirmar presenca", "reduzir intervalo entre contato e reuniao", "reforcar valor da reuniao"];
+    return ["criar lembrete automático", "confirmar presença", "reduzir intervalo entre contato e reunião", "reforçar valor da reunião"];
   }
 
   if (lowRoas && manyShowsFewSales) {
-    return ["revisar diagnostico comercial", "revisar proposta", "treinar fechamento", "mapear objecoes", "melhorar oferta"];
+    return ["revisar diagnóstico comercial", "revisar proposta", "treinar fechamento", "mapear objeções", "melhorar oferta"];
   }
 
   return ["preencher dados reais da campanha", "validar investimento e receita", "acompanhar leads, agenda, comparecimento e vendas"];
@@ -3635,7 +3635,7 @@ function RoasCalculator({
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Campanhas salvas</p>
           <h3 className="text-base font-black text-ink">Preparado para banco de dados</h3>
           <p className="mt-1 text-xs font-bold text-slate-500">
-            Quando houver backend, este ponto pode listar campanhas realizadas e carregar os mesmos campos, resultado e acoes corretivas.
+            Quando houver backend, este ponto pode listar campanhas realizadas e carregar os mêsmos campos, resultado e acoes corretivas.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -3663,7 +3663,7 @@ function RoasCalculator({
           onChange={(value) => onUpdate("nomeCampanha", value)}
         />
         <CampaignChannelField value={input.canalCampanha} onChange={(value) => onUpdate("canalCampanha", value)} />
-        <NumberField fieldKey={`${fieldPrefix}-investimento`} label="Investimento em midia" value={input.investimento} onChange={(value) => onUpdate("investimento", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-investimento`} label="Investimento em mídia" value={input.investimento} onChange={(value) => onUpdate("investimento", value)} />
         <NumberField fieldKey={`${fieldPrefix}-leads`} label="Leads gerados" value={input.leads} onChange={(value) => onUpdate("leads", value)} />
         <NumberField fieldKey={`${fieldPrefix}-agendamentos`} label="Agendamentos" value={input.agendamentos} onChange={(value) => onUpdate("agendamentos", value)} />
         <NumberField fieldKey={`${fieldPrefix}-comparecimentos`} label="Comparecimentos" value={input.comparecimentos} onChange={(value) => onUpdate("comparecimentos", value)} />
@@ -3712,7 +3712,7 @@ function RoasCalculator({
 
       <div className="mt-4 rounded-3xl bg-slate-50 p-4">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Acoes corretivas</p>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Ações corretivas</p>
           <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-slate-500">
             {metrics.receitaOrigem === "manual" ? "receita manual" : metrics.receitaOrigem === "calculada" ? "receita calculada" : "dados insuficientes"}
           </span>

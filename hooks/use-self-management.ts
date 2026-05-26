@@ -10,7 +10,7 @@ export type WeeklyPlan = {
   correctiveAction: string;
   owner: string;
   dueDate: string;
-  status: "A fazer" | "Em andamento" | "Concluido";
+  status: "A fazer" | "Em andamento" | "Concluído";
 };
 
 export type HistoryEntry = {
@@ -30,8 +30,8 @@ const dailyChecklist = [
   "Preencher CRM",
   "Fazer follow-up",
   "Registrar motivos de perda",
-  "Enviar resumo diario",
-  "Pedir indicacao",
+  "Enviar resumo diário",
+  "Pedir indicação",
   "Reativar cliente antigo"
 ];
 

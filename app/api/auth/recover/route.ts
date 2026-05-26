@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     if (!unitEmail) {
-      return NextResponse.json({ error: "Nao encontramos uma unidade com esse CNPJ ou e-mail." }, { status: 404 });
+      return NextResponse.json({ error: "Não encontramos uma unidade com esse CNPJ ou e-mail." }, { status: 404 });
     }
 
     try {
@@ -55,10 +55,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: "Enviamos um link de redefinicao para o e-mail cadastrado."
+      message: "Enviamos um link de redefinição para o e-mail cadastrado."
     });
   } catch (error) {
     console.error("Password recovery failed", error);
-    return NextResponse.json({ error: "Nao foi possivel enviar o e-mail de recuperacao agora." }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível enviar o e-mail de recuperação agora." }, { status: 500 });
   }
 }

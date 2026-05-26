@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       const masterEmail = (process.env.MASTER_EMAIL ?? "master@franquia.local").toLowerCase();
 
       if (email !== masterEmail) {
-        return NextResponse.json({ error: "Esta conta Google nao esta liberada como franqueadora." }, { status: 401 });
+        return NextResponse.json({ error: "Esta conta Google não está liberada como franqueadora." }, { status: 401 });
       }
 
       const response = NextResponse.json({
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     const unitDoc = snapshot.docs[0];
 
     if (!unitDoc) {
-      return NextResponse.json({ error: "Nao encontramos unidade ativa com esse e-mail Google." }, { status: 401 });
+      return NextResponse.json({ error: "Não encontramos unidade ativa com esse e-mail Google." }, { status: 401 });
     }
 
     const data = unitDoc.data() ?? {};
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     }
 
     if (data.status === "blocked") {
-      return NextResponse.json({ error: "Esta unidade esta bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
+      return NextResponse.json({ error: "Esta unidade está bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
     }
 
     await unitDoc.ref.set({ lastLoginAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -88,6 +88,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("Google login failed", error);
-    return NextResponse.json({ error: "Nao foi possivel validar o login com Google agora." }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível validar o login com Google agora." }, { status: 500 });
   }
 }

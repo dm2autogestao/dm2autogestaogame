@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     if (data.status === "blocked") {
-      return NextResponse.json({ error: "Esta unidade esta bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
+      return NextResponse.json({ error: "Esta unidade está bloqueada. Fale com a franqueadora para reativar o acesso." }, { status: 403 });
     }
 
     if (hasLegacyPassword) {
@@ -85,6 +85,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("Franchisee login failed", error);
-    return NextResponse.json({ error: "Nao foi possivel validar o login agora. Tente novamente em alguns segundos." }, { status: 500 });
+    return NextResponse.json({ error: "Não foi possível validar o login agora. Tente novamente em alguns segundos." }, { status: 500 });
   }
 }

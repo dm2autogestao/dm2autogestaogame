@@ -11,17 +11,17 @@ export function normalizeUnitId(unitId?: string) {
   return normalized || "demo-unit";
 }
 
-export function getFirebaseUnitPath(unitId: string, area: UnitDataArea) {
+export function getFirebaseUnitPath(unitId: string, área: UnitDataArea) {
   const safeUnitId = normalizeUnitId(unitId);
-  if (area === "campaigns") {
+  if (área === "campaigns") {
     return `franchises/${FRANCHISE_ID}/units/${safeUnitId}/campaigns/{campaignId}`;
   }
 
-  return `franchises/${FRANCHISE_ID}/units/${safeUnitId}/${area}/main`;
+  return `franchises/${FRANCHISE_ID}/units/${safeUnitId}/${área}/main`;
 }
 
-export function getLocalUnitStorageKey(unitId: string | undefined, area: UnitDataArea, version: string) {
-  return `${LOCAL_PREFIX}:${normalizeUnitId(unitId)}:${area}:${version}`;
+export function getLocalUnitStorageKey(unitId: string | undefined, área: UnitDataArea, version: string) {
+  return `${LOCAL_PREFIX}:${normalizeUnitId(unitId)}:${área}:${version}`;
 }
 
 export function getFirebaseUserPath(uid = "{uid}") {
@@ -48,6 +48,6 @@ export const firestoreRulesPreview = [
   "franchise_admin pode ler todas as units da franchiseId.",
   "unit_user so pode ler/escrever a propria unitId.",
   "status blocked nega login e escrita.",
-  "cadastro de franqueadora nao existe no client.",
+  "cadastro de franqueadora não existe no client.",
   "campanhas ficam em units/{unitId}/campaigns/{campaignId}."
 ];

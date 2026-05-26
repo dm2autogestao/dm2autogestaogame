@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   if (!canAccessUnit(unitId)) {
-    return NextResponse.json({ error: "Acesso nao autorizado." }, { status: 401 });
+    return NextResponse.json({ error: "Acesso não autorizado." }, { status: 401 });
   }
 
   const snapshot = await getDb().collection("units").doc(unitId).get();
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   if (!canAccessUnit(unitId)) {
-    return NextResponse.json({ error: "Acesso nao autorizado." }, { status: 401 });
+    return NextResponse.json({ error: "Acesso não autorizado." }, { status: 401 });
   }
 
   const payload: Record<string, unknown> = {
