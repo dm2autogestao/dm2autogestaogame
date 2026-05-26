@@ -103,6 +103,14 @@ type RegisteredUnit = {
   selfManagement?: SelfManagementSnapshot;
 };
 
+type GoogleLoginResult =
+  | AuthSession
+  | RegisteredUnit
+  | {
+      pending: true;
+      message: string;
+    };
+
 type MasterUnitForm = {
   unitName: string;
   responsibleName: string;
@@ -938,7 +946,7 @@ async function loginMasterOnServer(email: string, password: string, remember: bo
   return result.session as AuthSession;
 }
 
-async function loginWithGoogleOnServer(role: AuthRole, remember: boolean) {
+async function loginWithGoogleOnServer(role: AuthRole, remember: boolean): Promise<GoogleLoginResult> {
   if (!firebaseAuth) {
     throw new Error("Firebase não está configurado para login com Google.");
   }
@@ -956,6 +964,14 @@ async function loginWithGoogleOnServer(role: AuthRole, remember: boolean) {
   if (!response.ok) {
     await signOut(firebaseAuth).catch(() => undefined);
     throw new Error(result.error ?? "Não foi possível validar o login com Google agora.");
+  }
+
+  if (result.pending) {
+    await signOut(firebaseAuth).catch(() => undefined);
+    return {
+      pending: true,
+      message: result.message ?? "Cadastro enviado para aprovação. A franqueadora precisa liberar sua unidade antes do primeiro acesso."
+    };
   }
 
   return role === "master" ? (result.session as AuthSession) : (result.unit as RegisteredUnit);
@@ -1093,6 +1109,12 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
     try {
       const result = await loginWithGoogleOnServer(role, rememberLogin);
+
+      if ("pending" in result && result.pending) {
+        setMessage(result.message);
+        setView("login");
+        return;
+      }
 
       if (role === "master") {
         onAuthenticated(result as AuthSession, rememberLogin);

@@ -12,6 +12,10 @@ type GoogleLoginPayload = {
   remember?: boolean;
 };
 
+function getGoogleUnitId(uid: string) {
+  return `google_${uid}`;
+}
+
 function sanitizeUnit(id: string, data: Record<string, unknown>) {
   return {
     cnpj: typeof data.cnpj === "string" ? data.cnpj : id,
@@ -39,6 +43,7 @@ export async function POST(request: Request) {
     const db = getDb();
     const decodedToken = await getAuth().verifyIdToken(idToken);
     const email = (decodedToken.email ?? "").trim().toLowerCase();
+    const displayName = (decodedToken.name ?? email.split("@")[0] ?? "Cadastro Google").trim();
 
     if (!email || decodedToken.email_verified === false) {
       return NextResponse.json({ error: "Use uma conta Google com e-mail verificado." }, { status: 401 });
@@ -67,13 +72,37 @@ export async function POST(request: Request) {
     const unitDoc = snapshot.docs[0];
 
     if (!unitDoc) {
-      return NextResponse.json({ error: "Não encontramos unidade ativa com esse e-mail Google." }, { status: 401 });
+      const unitId = getGoogleUnitId(decodedToken.uid);
+      await db.collection("units").doc(unitId).set({
+        cnpj: unitId,
+        unitName: `Unidade de ${displayName}`,
+        responsibleName: displayName,
+        email,
+        phone: "",
+        city: "",
+        state: "",
+        status: "pending",
+        authProvider: "google",
+        googleUid: decodedToken.uid,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      return NextResponse.json({
+        ok: true,
+        pending: true,
+        message: "Cadastro enviado para aprovação. A franqueadora precisa liberar sua unidade antes do primeiro acesso."
+      }, { status: 202 });
     }
 
     const data = unitDoc.data() ?? {};
 
     if (data.status === "pending") {
-      return NextResponse.json({ error: "Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora." }, { status: 403 });
+      return NextResponse.json({
+        ok: true,
+        pending: true,
+        message: "Cadastro recebido. A unidade ainda precisa ser aprovada pela franqueadora."
+      }, { status: 202 });
     }
 
     if (data.status === "blocked") {
