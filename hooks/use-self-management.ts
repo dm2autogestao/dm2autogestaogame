@@ -99,7 +99,9 @@ export function useSelfManagement(unitId?: string) {
       }
 
       try {
-        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`);
+        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`, {
+          credentials: "include"
+        });
         const result = await response.json();
         const remoteState = result?.data?.selfManagement as Partial<SelfManagementState> | undefined;
 
@@ -133,6 +135,7 @@ export function useSelfManagement(unitId?: string) {
       if (unitId) {
         void fetch("/api/unit-state", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             unitId,

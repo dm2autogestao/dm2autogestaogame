@@ -207,6 +207,10 @@ export default function Home() {
   }
 
   function logout() {
+    void fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include"
+    }).catch(() => undefined);
     setAuthSession(null);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_SESSION_KEY);
@@ -819,7 +823,10 @@ function saveRegisteredUnits(units: RegisteredUnit[]) {
 }
 
 async function fetchRegisteredUnitsFromDb() {
-  const response = await fetch("/api/units", { cache: "no-store" });
+  const response = await fetch("/api/units", {
+    cache: "no-store",
+    credentials: "include"
+  });
   if (!response.ok) {
     throw new Error("Nao foi possivel carregar unidades.");
   }
@@ -828,12 +835,16 @@ async function fetchRegisteredUnitsFromDb() {
   return Array.isArray(result.units) ? result.units as RegisteredUnit[] : [];
 }
 
-async function loadRegisteredUnits() {
+async function loadRegisteredUnits(allowLocalFallback = true) {
   try {
     const units = await fetchRegisteredUnitsFromDb();
     saveRegisteredUnits(units);
     return units;
   } catch {
+    if (!allowLocalFallback) {
+      throw new Error("Sessao master expirada ou sem permissao para carregar unidades.");
+    }
+
     return readRegisteredUnits();
   }
 }
@@ -841,6 +852,7 @@ async function loadRegisteredUnits() {
 async function saveUnitToDb(unit: RegisteredUnit) {
   await fetch("/api/units", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(unit)
   });
@@ -849,6 +861,7 @@ async function saveUnitToDb(unit: RegisteredUnit) {
 async function updateUnitInDb(originalCnpj: string, data: Partial<RegisteredUnit> & { resetPassword?: boolean }) {
   await fetch("/api/units", {
     method: "PATCH",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ originalCnpj, ...data })
   });
@@ -856,13 +869,15 @@ async function updateUnitInDb(originalCnpj: string, data: Partial<RegisteredUnit
 
 async function deleteUnitFromDb(cnpj: string) {
   await fetch(`/api/units?unitId=${encodeURIComponent(cnpj)}`, {
-    method: "DELETE"
+    method: "DELETE",
+    credentials: "include"
   });
 }
 
 async function loginUnitOnServer(identifier: string, password: string) {
   const response = await fetch("/api/auth/login", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier, password })
   });
@@ -878,6 +893,7 @@ async function loginUnitOnServer(identifier: string, password: string) {
 async function loginMasterOnServer(email: string, password: string) {
   const response = await fetch("/api/auth/master", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
   });
@@ -1262,7 +1278,15 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   const [editUnitCnpj, setEditUnitCnpj] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadRegisteredUnits().then(setUnits);
+    void loadRegisteredUnits(false)
+      .then((nextUnits) => {
+        setUnits(nextUnits);
+        setMasterNotice("");
+      })
+      .catch(() => {
+        setUnits([]);
+        setMasterNotice("Sua sessao master precisa ser renovada. Clique em sair e entre novamente como franqueadora para carregar as unidades.");
+      });
   }, []);
 
   function persistUnits(nextUnits: RegisteredUnit[]) {
