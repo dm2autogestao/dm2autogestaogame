@@ -10,10 +10,34 @@ type GoogleLoginPayload = {
   idToken?: string;
   role?: "franchisee" | "master";
   remember?: boolean;
+  unitName?: string;
+  responsibleName?: string;
+  cnpj?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
 };
 
 function getGoogleUnitId(uid: string) {
   return `google_${uid}`;
+}
+
+function cleanCnpj(value: string | null | undefined) {
+  return value?.replace(/\D/g, "").slice(0, 14) ?? "";
+}
+
+function cleanText(value: string | null | undefined) {
+  return value?.trim() ?? "";
+}
+
+function hasRequiredGoogleProfile(body: GoogleLoginPayload) {
+  return Boolean(
+    cleanText(body.unitName) &&
+    cleanText(body.responsibleName) &&
+    cleanCnpj(body.cnpj).length === 14 &&
+    cleanText(body.city) &&
+    cleanText(body.state)
+  );
 }
 
 function sanitizeUnit(id: string, data: Record<string, unknown>) {
@@ -72,21 +96,36 @@ export async function POST(request: Request) {
     const unitDoc = snapshot.docs[0];
 
     if (!unitDoc) {
-      const unitId = getGoogleUnitId(decodedToken.uid);
+      if (!hasRequiredGoogleProfile(body)) {
+        return NextResponse.json({
+          ok: true,
+          profileRequired: true,
+          email,
+          displayName,
+          message: "Complete os dados da unidade para enviar o cadastro Google para aprovação."
+        }, { status: 202 });
+      }
+
+      const unitId = cleanCnpj(body.cnpj);
+      const existingCnpj = await db.collection("units").doc(unitId).get();
+      if (existingCnpj.exists) {
+        return NextResponse.json({ error: "Este CNPJ já possui cadastro." }, { status: 409 });
+      }
+
       await db.collection("units").doc(unitId).set({
         cnpj: unitId,
-        unitName: `Unidade de ${displayName}`,
-        responsibleName: displayName,
+        unitName: cleanText(body.unitName),
+        responsibleName: cleanText(body.responsibleName),
         email,
-        phone: "",
-        city: "",
-        state: "",
+        phone: cleanText(body.phone),
+        city: cleanText(body.city),
+        state: cleanText(body.state).toUpperCase(),
         status: "pending",
         authProvider: "google",
         googleUid: decodedToken.uid,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      });
 
       return NextResponse.json({
         ok: true,
@@ -98,6 +137,57 @@ export async function POST(request: Request) {
     const data = unitDoc.data() ?? {};
 
     if (data.status === "pending") {
+      const needsProfile = data.authProvider === "google" && (
+        !cleanText(typeof data.unitName === "string" ? data.unitName : "") ||
+        !cleanText(typeof data.responsibleName === "string" ? data.responsibleName : "") ||
+        cleanCnpj(typeof data.cnpj === "string" ? data.cnpj : "").length !== 14 ||
+        !cleanText(typeof data.city === "string" ? data.city : "") ||
+        !cleanText(typeof data.state === "string" ? data.state : "")
+      );
+
+      if (needsProfile && !hasRequiredGoogleProfile(body)) {
+        return NextResponse.json({
+          ok: true,
+          profileRequired: true,
+          email,
+          displayName,
+          unit: sanitizeUnit(unitDoc.id, data),
+          message: "Complete os dados da unidade para enviar o cadastro Google para aprovação."
+        }, { status: 202 });
+      }
+
+      if (needsProfile) {
+        const nextUnitId = cleanCnpj(body.cnpj);
+        const nextData = {
+          cnpj: nextUnitId,
+          unitName: cleanText(body.unitName),
+          responsibleName: cleanText(body.responsibleName),
+          email,
+          phone: cleanText(body.phone),
+          city: cleanText(body.city),
+          state: cleanText(body.state).toUpperCase(),
+          status: "pending",
+          authProvider: "google",
+          googleUid: decodedToken.uid,
+          updatedAt: FieldValue.serverTimestamp()
+        };
+
+        if (unitDoc.id !== nextUnitId) {
+          const existingCnpj = await db.collection("units").doc(nextUnitId).get();
+          if (existingCnpj.exists) {
+            return NextResponse.json({ error: "Este CNPJ já possui cadastro." }, { status: 409 });
+          }
+
+          await db.collection("units").doc(nextUnitId).set({
+            ...nextData,
+            createdAt: data.createdAt ?? FieldValue.serverTimestamp()
+          });
+          await unitDoc.ref.delete();
+        } else {
+          await unitDoc.ref.set(nextData, { merge: true });
+        }
+      }
+
       return NextResponse.json({
         ok: true,
         pending: true,

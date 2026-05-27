@@ -109,7 +109,20 @@ type GoogleLoginResult =
   | {
       pending: true;
       message: string;
+    }
+  | {
+      profileRequired: true;
+      idToken: string;
+      email: string;
+      displayName: string;
+      message: string;
     };
+
+type GoogleProfileState = {
+  idToken: string;
+  email: string;
+  displayName: string;
+};
 
 type MasterUnitForm = {
   unitName: string;
@@ -966,6 +979,17 @@ async function loginWithGoogleOnServer(role: AuthRole, remember: boolean): Promi
     throw new Error(result.error ?? "Não foi possível validar o login com Google agora.");
   }
 
+  if (result.profileRequired) {
+    await signOut(firebaseAuth).catch(() => undefined);
+    return {
+      profileRequired: true,
+      idToken,
+      email: result.email ?? credential.user.email ?? "",
+      displayName: result.displayName ?? credential.user.displayName ?? "",
+      message: result.message ?? "Complete os dados da unidade para enviar o cadastro Google para aprovação."
+    };
+  }
+
   if (result.pending) {
     await signOut(firebaseAuth).catch(() => undefined);
     return {
@@ -975,6 +999,32 @@ async function loginWithGoogleOnServer(role: AuthRole, remember: boolean): Promi
   }
 
   return role === "master" ? (result.session as AuthSession) : (result.unit as RegisteredUnit);
+}
+
+async function sendGoogleProfileForApproval(idToken: string, profile: typeof initialRegisterState, remember: boolean) {
+  const response = await fetch("/api/auth/google", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      idToken,
+      role: "franchisee",
+      remember,
+      unitName: profile.unitName.trim(),
+      responsibleName: profile.responsibleName.trim(),
+      cnpj: profile.cnpj,
+      phone: profile.phone.trim(),
+      city: profile.city.trim(),
+      state: profile.state.trim().toUpperCase()
+    })
+  });
+  const result = await readJsonResponse(response, "Não foi possível enviar o cadastro Google agora.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Não foi possível enviar o cadastro Google agora.");
+  }
+
+  return result as { pending?: boolean; message?: string };
 }
 
 async function recoverFranchiseePassword(identifier: string) {
@@ -1044,24 +1094,27 @@ function unitMatchesSearch(summary: MasterUnitSummary, search: string) {
   return normalizeSearch(haystack).includes(term);
 }
 
+const initialRegisterState = {
+  unitName: "",
+  responsibleName: "",
+  cnpj: "",
+  email: "",
+  phone: "",
+  city: "",
+  state: "",
+  password: "",
+  confirmPassword: ""
+};
+
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession, remember?: boolean) => void }) {
   const [role, setRole] = useState<AuthRole>("franchisee");
   const [view, setView] = useState<AuthView>("login");
   const [message, setMessage] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleProfile, setGoogleProfile] = useState<GoogleProfileState | null>(null);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [login, setLogin] = useState({ cnpj: "", email: "", password: "" });
-  const [register, setRegister] = useState({
-    unitName: "",
-    responsibleName: "",
-    cnpj: "",
-    email: "",
-    phone: "",
-    city: "",
-    state: "",
-    password: "",
-    confirmPassword: ""
-  });
+  const [register, setRegister] = useState(initialRegisterState);
   const [recover, setRecover] = useState({ identifier: "" });
 
   async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
@@ -1110,6 +1163,24 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     try {
       const result = await loginWithGoogleOnServer(role, rememberLogin);
 
+      if ("profileRequired" in result && result.profileRequired) {
+        setGoogleProfile({
+          idToken: result.idToken,
+          email: result.email,
+          displayName: result.displayName
+        });
+        setRegister((current) => ({
+          ...current,
+          email: result.email,
+          responsibleName: current.responsibleName || result.displayName,
+          password: "",
+          confirmPassword: ""
+        }));
+        setView("register");
+        setMessage(result.message);
+        return;
+      }
+
       if ("pending" in result && result.pending) {
         setMessage(result.message);
         setView("login");
@@ -1147,6 +1218,19 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     const cnpj = normalizeCnpj(register.cnpj);
     if (!register.unitName.trim() || !register.responsibleName.trim() || cnpj.length !== 14 || !register.email.trim() || !register.city.trim() || !register.state.trim()) {
       setMessage("Preencha unidade, responsável, CNPJ válido, e-mail, cidade e estado.");
+      return;
+    }
+
+    if (googleProfile) {
+      try {
+        const result = await sendGoogleProfileForApproval(googleProfile.idToken, { ...register, cnpj }, rememberLogin);
+        setGoogleProfile(null);
+        setRegister(initialRegisterState);
+        setView("login");
+        setMessage(result.message ?? "Cadastro enviado para aprovação. A franqueadora precisa liberar sua unidade antes do primeiro acesso.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Não foi possível enviar o cadastro Google agora.");
+      }
       return;
     }
 
@@ -1266,6 +1350,14 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     setRole(nextRole);
     setView("login");
     setMessage("");
+    setGoogleProfile(null);
+  }
+
+  function returnToLogin() {
+    setGoogleProfile(null);
+    setRegister(initialRegisterState);
+    setView("login");
+    setMessage("");
   }
 
   return (
@@ -1311,15 +1403,15 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
           <div className="mb-5">
             <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
-              {view === "login" ? "Acesso seguro" : view === "register" ? "Novo cadastro" : "Recuperação de senha"}
+              {view === "login" ? "Acesso seguro" : view === "register" ? (googleProfile ? "Cadastro com Google" : "Novo cadastro") : "Recuperação de senha"}
             </p>
             <h2 className="mt-1 text-2xl font-black text-ink">
-              {view === "login" ? (role === "franchisee" ? "Acesse sua unidade" : "Acesse a visão master") : view === "register" ? "Cadastre-se" : "Esqueceu sua senha?"}
+              {view === "login" ? (role === "franchisee" ? "Acesse sua unidade" : "Acesse a visão master") : view === "register" ? (googleProfile ? "Complete seu cadastro" : "Cadastre-se") : "Esqueceu sua senha?"}
             </h2>
             <p className="mt-1 text-sm font-bold text-slate-500">
               {view === "login"
                 ? role === "franchisee" ? "Use CNPJ ou e-mail para entrar." : "Acesso exclusivo da franqueadora."
-                : view === "register" ? "Preencha os dados da unidade para solicitar acesso." : "Informe os dados para criar uma nova senha."}
+                : view === "register" ? (googleProfile ? "Confirme os dados da unidade para análise da franqueadora." : "Preencha os dados da unidade para solicitar acesso.") : "Informe os dados para criar uma nova senha."}
             </p>
           </div>
 
@@ -1361,7 +1453,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                 </button>
                 <div className="mt-2 grid gap-2 text-center text-sm font-black">
                   {role === "franchisee" ? (
-                    <button type="button" onClick={() => setView("register")} className="text-emerald-700 transition hover:text-emerald-900">
+                    <button type="button" onClick={() => { setGoogleProfile(null); setView("register"); }} className="text-emerald-700 transition hover:text-emerald-900">
                       Cadastre-se
                     </button>
                   ) : null}
@@ -1374,21 +1466,32 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
             {view === "register" && role === "franchisee" ? (
               <form onSubmit={submitRegister} className="grid gap-3 sm:grid-cols-2">
+                {googleProfile ? (
+                  <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800 sm:col-span-2">
+                    Conta Google validada: {googleProfile.email}
+                  </div>
+                ) : null}
                 <AuthInput icon={Building2} label="Nome da unidade" value={register.unitName} onChange={(value) => setRegister((current) => ({ ...current, unitName: value }))} placeholder="Unidade Centro" />
                 <AuthInput icon={UserRound} label="Responsável" value={register.responsibleName} onChange={(value) => setRegister((current) => ({ ...current, responsibleName: value }))} placeholder="Nome do franqueado" />
                 <AuthInput icon={Building2} label="CNPJ" value={register.cnpj} onChange={(value) => setRegister((current) => ({ ...current, cnpj: value }))} placeholder="00.000.000/0000-00" />
-                <AuthInput icon={Mail} label="E-mail" value={register.email} onChange={(value) => setRegister((current) => ({ ...current, email: value }))} placeholder="unidade@email.com" />
+                {googleProfile ? null : (
+                  <AuthInput icon={Mail} label="E-mail" value={register.email} onChange={(value) => setRegister((current) => ({ ...current, email: value }))} placeholder="unidade@email.com" />
+                )}
                 <AuthInput icon={Phone} label="Telefone" value={register.phone} onChange={(value) => setRegister((current) => ({ ...current, phone: value }))} placeholder="(00) 00000-0000" />
                 <AuthInput icon={MapPin} label="Cidade" value={register.city} onChange={(value) => setRegister((current) => ({ ...current, city: value }))} placeholder="São Paulo" />
                 <AuthInput icon={MapPin} label="Estado" value={register.state} onChange={(value) => setRegister((current) => ({ ...current, state: value }))} placeholder="SP" />
-                <AuthInput icon={KeyRound} label="Criar senha" type="password" value={register.password} onChange={(value) => setRegister((current) => ({ ...current, password: value }))} placeholder="Mínimo 6 caracteres" />
-                <AuthInput icon={KeyRound} label="Confirmar senha" type="password" value={register.confirmPassword} onChange={(value) => setRegister((current) => ({ ...current, confirmPassword: value }))} placeholder="Repita a senha" />
+                {googleProfile ? null : (
+                  <>
+                    <AuthInput icon={KeyRound} label="Criar senha" type="password" value={register.password} onChange={(value) => setRegister((current) => ({ ...current, password: value }))} placeholder="Mínimo 6 caracteres" />
+                    <AuthInput icon={KeyRound} label="Confirmar senha" type="password" value={register.confirmPassword} onChange={(value) => setRegister((current) => ({ ...current, confirmPassword: value }))} placeholder="Repita a senha" />
+                  </>
+                )}
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2 sm:col-span-2">
                   <CheckCircle2 className="h-4 w-4" />
-                  Cadastre-se
+                  {googleProfile ? "Enviar para aprovação" : "Cadastre-se"}
                 </button>
-                <button type="button" onClick={() => setView("login")} className="text-center text-sm font-black text-slate-500 transition hover:text-ink sm:col-span-2">
-                  Já tenho cadastro
+                <button type="button" onClick={returnToLogin} className="text-center text-sm font-black text-slate-500 transition hover:text-ink sm:col-span-2">
+                  {googleProfile ? "Cancelar cadastro Google" : "Já tenho cadastro"}
                 </button>
               </form>
             ) : null}
