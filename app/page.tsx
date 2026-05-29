@@ -531,7 +531,7 @@ export default function Home() {
 
               <RoasCalculator
                 title="ROI de Campanha"
-                subtitle="Campanha realizada ou nova analise"
+                subtitle="Campanha realizada ou nova análise"
                 fieldPrefix="campaign-roi"
                 accent="#14B8A6"
                 icon={Calculator}
@@ -687,10 +687,10 @@ export default function Home() {
                     <CalendarCheck className="h-8 w-8" />
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Auto gestao comercial</p>
-                    <h1 className="text-2xl font-black text-ink">Plano da semana e proximo movimento</h1>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Autogestão comercial</p>
+                    <h1 className="text-2xl font-black text-ink">Plano da semana e próximo movimento</h1>
                     <p className="mt-2 text-sm font-semibold text-slate-500">
-                      Transforme metricas em rotina: escolha foco, execute o dia, registre aprendizado e avance.
+                      Transforme métricas em rotina: escolha foco, execute o dia, registre aprendizado e avance.
                     </p>
                   </div>
                 </div>
@@ -2604,7 +2604,7 @@ function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
         </div>
 
         <div className="rounded-3xl bg-slate-50 p-4">
-          <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Plano e historico</p>
+          <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Plano e histórico</p>
           <div className="rounded-2xl bg-white p-3 shadow-sm">
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">Prioridade atual</p>
             <p className="mt-1 text-sm font-black text-ink">{summary.weeklyPlan?.priority || "Sem prioridade preenchida"}</p>
@@ -3408,7 +3408,7 @@ function HistoryCard({
           ))
         ) : (
           <div className="rounded-3xl bg-slate-50 p-4 text-sm font-bold text-slate-500">
-            Nenhuma semana fechada ainda. Quando fechar, o historico mostra score, XP, gargalo e ação escolhida.
+            Nenhuma semana fechada ainda. Quando fechar, o histórico mostra score, XP, gargalo e ação escolhida.
           </div>
         )}
       </div>
@@ -4039,7 +4039,7 @@ function RoasCalculator({
           <p className="text-xs font-black uppercase tracking-wide text-slate-400">Campanhas salvas</p>
           <h3 className="text-base font-black text-ink">Preparado para banco de dados</h3>
           <p className="mt-1 text-xs font-bold text-slate-500">
-            Quando houver backend, este ponto pode listar campanhas realizadas e carregar os mêsmos campos, resultado e acoes corretivas.
+            Quando houver backend, este ponto pode listar campanhas realizadas e carregar os mesmos campos, resultado e ações corretivas.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -4072,11 +4072,11 @@ function RoasCalculator({
         <NumberField fieldKey={`${fieldPrefix}-agendamentos`} label="Agendamentos" value={input.agendamentos} onChange={(value) => onUpdate("agendamentos", value)} />
         <NumberField fieldKey={`${fieldPrefix}-comparecimentos`} label="Comparecimentos" value={input.comparecimentos} onChange={(value) => onUpdate("comparecimentos", value)} />
         <NumberField fieldKey={`${fieldPrefix}-vendas`} label="Vendas" value={input.vendas} onChange={(value) => onUpdate("vendas", value)} />
-        <NumberField fieldKey={`${fieldPrefix}-ticketMedio`} label="Ticket medio" value={input.ticketMedio} onChange={(value) => onUpdate("ticketMedio", value)} />
+        <NumberField fieldKey={`${fieldPrefix}-ticketMedio`} label="Ticket médio" value={input.ticketMedio} onChange={(value) => onUpdate("ticketMedio", value)} />
         <div className="sm:col-span-2">
           <NumberField fieldKey={`${fieldPrefix}-receita`} label="Receita total gerada" value={input.receita} onChange={(value) => onUpdate("receita", value)} />
           <p className="mt-1 text-xs font-bold text-slate-500">
-            Receita manual tem prioridade. Sem ela, o app calcula vendas x ticket medio.
+            Receita manual tem prioridade. Sem ela, o app calcula vendas x ticket médio.
           </p>
         </div>
       </div>

@@ -20,7 +20,7 @@ export type ChannelInput = {
   indicacoes: number;
 };
 
-export type CampaignAdChannel = "Meta Ads" | "Google Ads" | "TikTok Ads" | "Indicacao patrocinada" | "Outro";
+export type CampaignAdChannel = "Meta Ads" | "Google Ads" | "TikTok Ads" | "Indicação patrocinada" | "Outro";
 
 export type CommercialInputs = Record<"passivo-frio" | "passivo-quente" | "ativo-frio" | "ativo-quente", ChannelInput>;
 
