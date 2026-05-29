@@ -656,7 +656,13 @@ export default function Home() {
 
               <section className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.1fr]">
                 <NextMoveCard nextMove={nextMove} />
-                <WeeklyPlanCard plan={selfManagement.weeklyPlan} onUpdate={selfManagement.updatePlan} />
+                <WeeklyPlanCard
+                  plan={selfManagement.weeklyPlan}
+                  planProgress={selfManagement.planProgress}
+                  weeklyPlanXp={selfManagement.weeklyPlanXp}
+                  planAlert={selfManagement.planAlert}
+                  onUpdate={selfManagement.updatePlan}
+                />
               </section>
 
               <section className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
@@ -670,6 +676,7 @@ export default function Home() {
                   history={selfManagement.history}
                   score={score}
                   xp={game.totalXp}
+                  planXp={selfManagement.weeklyPlanXp}
                   bottleneck={weakestBlock?.label ?? "Sem gargalo"}
                   action={nextMove.action}
                   onCloseWeek={selfManagement.closeWeek}
@@ -2372,6 +2379,7 @@ function getUnitStatusClass(status: RegisteredUnit["status"]) {
 
 function MasterCampaigns({ summaries }: { summaries: MasterUnitSummary[] }) {
   const [search, setSearch] = useState("");
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignRecord | null>(null);
   const rows = summaries
     .flatMap((summary) => {
       const records = summary.campaignRecords.length ? summary.campaignRecords : [{
@@ -2441,6 +2449,14 @@ function MasterCampaigns({ summaries }: { summaries: MasterUnitSummary[] }) {
                 <MiniMetric label="ROI" value={formatMultiplier(row.metrics.roas)} />
                 <MiniMetric label="CPV" value={formatCurrency(row.metrics.cpv)} />
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCampaign(row.campaign)}
+                className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700"
+              >
+                <Eye className="h-4 w-4" />
+                Ver detalhes
+              </button>
             </div>
           ))
         ) : (
@@ -2449,6 +2465,9 @@ function MasterCampaigns({ summaries }: { summaries: MasterUnitSummary[] }) {
           </div>
         )}
       </div>
+      {selectedCampaign ? (
+        <CampaignDetailsModal record={selectedCampaign} onClose={() => setSelectedCampaign(null)} />
+      ) : null}
     </section>
   );
 }
@@ -2872,6 +2891,8 @@ function defaultCampaignRoiSnapshot(): ChannelInput {
   return {
     nomeCampanha: "",
     canalCampanha: "Meta Ads",
+    responsavelCampanha: "",
+    observacaoCampanha: "",
     investimento: 0,
     receita: 0,
     ticketMedio: 0,
@@ -3018,20 +3039,49 @@ function MiniAdvice({ title, text }: { title: string; text: string }) {
 
 function WeeklyPlanCard({
   plan,
+  planProgress,
+  weeklyPlanXp,
+  planAlert,
   onUpdate
 }: {
   plan: WeeklyPlan;
+  planProgress: number;
+  weeklyPlanXp: number;
+  planAlert: string;
   onUpdate: <K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) => void;
 }) {
   return (
     <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-skyjoy text-white">
-          <NotepadText className="h-6 w-6" />
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-skyjoy text-white">
+            <NotepadText className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Plano da semana</p>
+            <h2 className="text-xl font-black text-ink">Foco de execução</h2>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Plano da semana</p>
-          <h2 className="text-xl font-black text-ink">Foco de execução</h2>
+        <XPBadge xp={weeklyPlanXp} label="XP do plano" tone="gold" />
+      </div>
+      {planAlert ? (
+        <div className="mb-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex gap-3">
+            <BellRing className="mt-0.5 h-5 w-5 text-amber-600" />
+            <div>
+              <p className="text-sm font-black text-amber-900">Alerta do plano</p>
+              <p className="mt-1 text-xs font-bold text-amber-800">{planAlert}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="mb-4 rounded-3xl bg-emerald-50 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Progresso do plano</p>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-700">{planProgress}%</span>
+        </div>
+        <div className="mt-3">
+          <ProgressBar value={planProgress} color="#58CC02" label="Campos preenchidos" compact />
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -3076,6 +3126,21 @@ function TextField({ label, value, placeholder, onChange }: { label: string; val
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-ink outline-none transition placeholder:text-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+      />
+    </label>
+  );
+}
+
+function TextAreaField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</span>
+      <textarea
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-ink outline-none transition placeholder:text-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
       />
     </label>
   );
@@ -3148,6 +3213,7 @@ function HistoryCard({
   history,
   score,
   xp,
+  planXp,
   bottleneck,
   action,
   onCloseWeek
@@ -3155,6 +3221,7 @@ function HistoryCard({
   history: Array<{ id: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
   score: number;
   xp: number;
+  planXp: number;
   bottleneck: string;
   action: string;
   onCloseWeek: (entry: { score: number; xp: number; bottleneck: string; action: string }) => void;
@@ -3168,7 +3235,7 @@ function HistoryCard({
         </div>
         <button
           type="button"
-          onClick={() => onCloseWeek({ score, xp, bottleneck, action })}
+          onClick={() => onCloseWeek({ score, xp: xp + planXp, bottleneck, action })}
           className="rounded-2xl border-2 border-b-4 border-emerald-600 bg-meadow px-4 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
         >
           Fechar semana
@@ -3176,7 +3243,7 @@ function HistoryCard({
       </div>
       <div className="mb-4 grid grid-cols-3 gap-2">
         <MiniMetric label="Métrica" value={`${score}%`} />
-        <MiniMetric label="XP" value={`${xp}`} />
+        <MiniMetric label="XP" value={`${xp + planXp}`} />
         <MiniMetric label="Gargalo" value={bottleneck} />
       </div>
       <div className="space-y-3">
@@ -3561,7 +3628,9 @@ function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calcul
 function createEmptyCampaignRecord(city = ""): Omit<CampaignRecord, "id" | "createdAt"> {
   return {
     ...defaultCampaignRoiSnapshot(),
-    cidade: city
+    cidade: city,
+    responsavelCampanha: "",
+    observacaoCampanha: ""
   };
 }
 
@@ -3570,6 +3639,8 @@ function getCampaignXp(input: ChannelInput) {
   const filledFields = [
     input.nomeCampanha.trim(),
     input.canalCampanha,
+    input.responsavelCampanha.trim(),
+    input.observacaoCampanha.trim(),
     input.investimento,
     input.leads,
     input.agendamentos,
@@ -3595,6 +3666,7 @@ function CampaignLog({
   onRemove: (id: string) => void;
 }) {
   const [form, setForm] = useState<Omit<CampaignRecord, "id" | "createdAt">>(() => createEmptyCampaignRecord(unitCity));
+  const [selectedRecord, setSelectedRecord] = useState<CampaignRecord | null>(null);
   const metrics = calculateInputMetrics(form);
   const status = getRoasStatus(metrics.roas);
   const campaignXp = getCampaignXp(form);
@@ -3636,6 +3708,7 @@ function CampaignLog({
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField label="Nome da campanha" value={form.nomeCampanha} placeholder="Ex: Captação Meta Ads" onChange={(value) => update("nomeCampanha", value)} />
           <CampaignChannelField value={form.canalCampanha} onChange={(value) => update("canalCampanha", value)} />
+          <TextField label="Responsável pela campanha" value={form.responsavelCampanha} placeholder="Ex: Ana / Gestor local" onChange={(value) => update("responsavelCampanha", value)} />
           <TextField label="Cidade da campanha" value={form.cidade} placeholder="Ex: São Paulo" onChange={(value) => update("cidade", value)} />
           <NumberField fieldKey="campaign-log-investimento" label="Investimento em mídia" value={form.investimento} onChange={(value) => update("investimento", value)} />
           <NumberField fieldKey="campaign-log-leads" label="Leads gerados" value={form.leads} onChange={(value) => update("leads", value)} />
@@ -3644,6 +3717,9 @@ function CampaignLog({
           <NumberField fieldKey="campaign-log-vendas" label="Vendas" value={form.vendas} onChange={(value) => update("vendas", value)} />
           <NumberField fieldKey="campaign-log-ticket" label="Ticket médio" value={form.ticketMedio} onChange={(value) => update("ticketMedio", value)} />
           <NumberField fieldKey="campaign-log-receita" label="Receita total gerada" value={form.receita} onChange={(value) => update("receita", value)} />
+          <div className="sm:col-span-2">
+            <TextAreaField label="Observação da campanha" value={form.observacaoCampanha} placeholder="Descreva como foi realizada: público, oferta, criativo, ação local, aprendizados." onChange={(value) => update("observacaoCampanha", value)} />
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 rounded-[28px] border border-emerald-100 bg-emerald-50/80 p-4 md:grid-cols-[1fr_1fr]">
@@ -3696,10 +3772,16 @@ function CampaignLog({
                   <MiniMetric label="Leads" value={`${record.leads}`} />
                   <MiniMetric label="Vendas" value={`${record.vendas}`} />
                 </div>
-                <button type="button" onClick={() => onRemove(record.id)} className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">
-                  <Trash2 className="h-4 w-4" />
-                  Excluir campanha
-                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setSelectedRecord(record)} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">
+                    <Eye className="h-4 w-4" />
+                    Ver detalhes
+                  </button>
+                  <button type="button" onClick={() => onRemove(record.id)} className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                    Excluir campanha
+                  </button>
+                </div>
               </article>
             );
           }) : (
@@ -3709,7 +3791,56 @@ function CampaignLog({
           )}
         </div>
       </section>
+      {selectedRecord ? (
+        <CampaignDetailsModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      ) : null}
     </section>
+  );
+}
+
+function CampaignDetailsModal({ record, onClose }: { record: CampaignRecord; onClose: () => void }) {
+  const metrics = calculateInputMetrics(record);
+  const status = getRoasStatus(metrics.roas);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4 backdrop-blur-sm">
+      <article className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-white bg-white p-5 shadow-soft">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Detalhes da campanha</p>
+            <h2 className="text-2xl font-black text-ink">{record.nomeCampanha || "Campanha sem nome"}</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">{record.canalCampanha} - {record.cidade || "Cidade não informada"}</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-slate-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MiniMetric label="ROAS" value={formatMultiplier(metrics.roas)} />
+          <MiniMetric label="Receita" value={formatCurrency(metrics.receita)} />
+          <MiniMetric label="XP" value={`${getCampaignXp(record)}`} />
+        </div>
+
+        <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Execução</p>
+          <p className="mt-2 text-sm font-black text-ink">Responsável: {record.responsavelCampanha || "Não informado"}</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm font-bold text-slate-600">{record.observacaoCampanha || "Sem observação registrada."}</p>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <MiniMetric label="Leads" value={`${record.leads}`} />
+          <MiniMetric label="Agend." value={`${record.agendamentos}`} />
+          <MiniMetric label="Comparec." value={`${record.comparecimentos}`} />
+          <MiniMetric label="Vendas" value={`${record.vendas}`} />
+        </div>
+
+        <div className="mt-4 rounded-3xl p-4" style={{ backgroundColor: status.bg.includes("emerald") ? "#ECFDF5" : status.bg.includes("amber") ? "#FFFBEB" : "#FEF2F2" }}>
+          <p className="text-sm font-black text-ink">{status.label}</p>
+          <p className="mt-1 text-sm font-bold text-slate-600">{status.message}</p>
+        </div>
+      </article>
+    </div>
   );
 }
 

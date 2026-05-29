@@ -18,6 +18,7 @@ export type HistoryEntry = {
   date: string;
   score: number;
   xp: number;
+  planXp?: number;
   bottleneck: string;
   action: string;
 };
@@ -82,6 +83,7 @@ function readState(storageKey: string): SelfManagementState {
 export function useSelfManagement(unitId?: string) {
   const [state, setState] = useState<SelfManagementState>(defaultState);
   const [isReady, setIsReady] = useState(false);
+  const [loadedStorageKey, setLoadedStorageKey] = useState("");
   const storageKey = getLocalUnitStorageKey(unitId, "selfManagement", STORAGE_VERSION);
 
   useEffect(() => {
@@ -94,6 +96,7 @@ export function useSelfManagement(unitId?: string) {
         if (isMounted) {
           setState(localState);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
         return;
       }
@@ -112,11 +115,13 @@ export function useSelfManagement(unitId?: string) {
             history: Array.isArray(remoteState.history) ? remoteState.history : []
           } : localState);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
       } catch {
         if (isMounted) {
           setState(localState);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
       }
     }
@@ -130,7 +135,7 @@ export function useSelfManagement(unitId?: string) {
   }, [storageKey, unitId]);
 
   useEffect(() => {
-    if (isReady) {
+    if (isReady && loadedStorageKey === storageKey) {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       if (unitId) {
         void fetch("/api/unit-state", {
@@ -144,7 +149,7 @@ export function useSelfManagement(unitId?: string) {
         }).catch(() => undefined);
       }
     }
-  }, [isReady, state, storageKey, unitId]);
+  }, [isReady, loadedStorageKey, state, storageKey, unitId]);
 
   function updatePlan<K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) {
     setState((current) => ({
@@ -185,10 +190,33 @@ export function useSelfManagement(unitId?: string) {
     }));
   }
 
+  const planFields = [
+    state.weeklyPlan.priority,
+    state.weeklyPlan.focusChannel,
+    state.weeklyPlan.mainGoal,
+    state.weeklyPlan.correctiveAction,
+    state.weeklyPlan.owner,
+    state.weeklyPlan.dueDate
+  ];
+  const filledPlanFields = planFields.filter((field) => field.trim()).length;
+  const planProgress = Math.round((filledPlanFields / planFields.length) * 100);
+  const dailyProgress = Math.round((state.completedDaily.length / dailyChecklist.length) * 100);
+  const statusBonus = state.weeklyPlan.status === "Concluído" ? 40 : state.weeklyPlan.status === "Em andamento" ? 20 : 0;
+  const weeklyPlanXp = filledPlanFields * 15 + state.completedDaily.length * 5 + statusBonus;
+  const planAlert =
+    filledPlanFields === 0
+      ? "Plano da semana pendente: defina prioridade, meta, ação e responsável."
+      : filledPlanFields < planFields.length
+        ? "Plano da semana incompleto: finalize os campos para ganhar mais XP."
+        : "";
+
   return {
     ...state,
     dailyChecklist,
-    dailyProgress: Math.round((state.completedDaily.length / dailyChecklist.length) * 100),
+    dailyProgress,
+    planProgress,
+    weeklyPlanXp,
+    planAlert,
     updatePlan,
     toggleDaily,
     closeWeek

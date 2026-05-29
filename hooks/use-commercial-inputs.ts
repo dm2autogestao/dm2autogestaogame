@@ -7,6 +7,8 @@ import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 export type ChannelInput = {
   nomeCampanha: string;
   canalCampanha: CampaignAdChannel;
+  responsavelCampanha: string;
+  observacaoCampanha: string;
   investimento: number;
   receita: number;
   ticketMedio: number;
@@ -42,6 +44,8 @@ export const defaultCommercialInputs: CommercialInputs = {
   "passivo-frio": {
     nomeCampanha: "",
     canalCampanha: "Meta Ads",
+    responsavelCampanha: "",
+    observacaoCampanha: "",
     investimento: 0,
     receita: 0,
     ticketMedio: 0,
@@ -55,6 +59,8 @@ export const defaultCommercialInputs: CommercialInputs = {
   "passivo-quente": {
     nomeCampanha: "",
     canalCampanha: "Meta Ads",
+    responsavelCampanha: "",
+    observacaoCampanha: "",
     investimento: 0,
     receita: 0,
     ticketMedio: 0,
@@ -68,6 +74,8 @@ export const defaultCommercialInputs: CommercialInputs = {
   "ativo-frio": {
     nomeCampanha: "",
     canalCampanha: "Meta Ads",
+    responsavelCampanha: "",
+    observacaoCampanha: "",
     investimento: 0,
     receita: 0,
     ticketMedio: 0,
@@ -81,6 +89,8 @@ export const defaultCommercialInputs: CommercialInputs = {
   "ativo-quente": {
     nomeCampanha: "",
     canalCampanha: "Meta Ads",
+    responsavelCampanha: "",
+    observacaoCampanha: "",
     investimento: 0,
     receita: 0,
     ticketMedio: 0,
@@ -178,7 +188,13 @@ export function useCommercialInputs(unitId?: string) {
             unitName: typeof remoteProfile.unitName === "string" ? remoteProfile.unitName : localProfile.unitName,
             channels: mergeCommercialInputs(remoteProfile.channels),
             campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...remoteProfile.campaignRoi },
-            campaignRecords: Array.isArray(remoteProfile.campaignRecords) ? remoteProfile.campaignRecords : []
+            campaignRecords: Array.isArray(remoteProfile.campaignRecords) ? remoteProfile.campaignRecords.map((record: Partial<CampaignRecord>) => ({
+              ...defaultCommercialInputs["passivo-frio"],
+              ...record,
+              id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+              cidade: typeof record.cidade === "string" ? record.cidade : "",
+              createdAt: typeof record.createdAt === "string" ? record.createdAt : new Date().toISOString()
+            })) : []
           } : localProfile);
           setIsReady(true);
         }

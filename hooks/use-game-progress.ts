@@ -53,6 +53,7 @@ function readProgress(storageKey: string): ProgressState {
 export function useGameProgress(unitId?: string) {
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [isReady, setIsReady] = useState(false);
+  const [loadedStorageKey, setLoadedStorageKey] = useState("");
   const storageKey = getLocalUnitStorageKey(unitId, "gameProgress", STORAGE_VERSION);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function useGameProgress(unitId?: string) {
         if (isMounted) {
           setProgress(localProgress);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
         return;
       }
@@ -83,11 +85,13 @@ export function useGameProgress(unitId?: string) {
             selectedBlockId: isBlockId(remoteProgress.selectedBlockId) ? remoteProgress.selectedBlockId : "icp"
           } : localProgress);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
       } catch {
         if (isMounted) {
           setProgress(localProgress);
           setIsReady(true);
+          setLoadedStorageKey(storageKey);
         }
       }
     }
@@ -101,7 +105,7 @@ export function useGameProgress(unitId?: string) {
   }, [storageKey, unitId]);
 
   useEffect(() => {
-    if (isReady) {
+    if (isReady && loadedStorageKey === storageKey) {
       window.localStorage.setItem(storageKey, JSON.stringify(progress));
       if (unitId) {
         void fetch("/api/unit-state", {
@@ -115,7 +119,7 @@ export function useGameProgress(unitId?: string) {
         }).catch(() => undefined);
       }
     }
-  }, [isReady, progress, storageKey, unitId]);
+  }, [isReady, loadedStorageKey, progress, storageKey, unitId]);
 
   const completedSet = useMemo(() => new Set(progress.completedMissions), [progress.completedMissions]);
   const solutionsSet = useMemo(() => new Set(progress.appliedSolutions), [progress.appliedSolutions]);
