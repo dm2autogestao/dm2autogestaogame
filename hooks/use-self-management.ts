@@ -8,6 +8,8 @@ export type WeeklyPlan = {
   focusChannel: string;
   mainGoal: string;
   correctiveAction: string;
+  alertProblemId: string;
+  alertAction: string;
   owner: string;
   dueDate: string;
   status: "A fazer" | "Em andamento" | "Concluído";
@@ -21,6 +23,11 @@ export type HistoryEntry = {
   planXp?: number;
   bottleneck: string;
   action: string;
+};
+
+export type SavedWeeklyPlan = WeeklyPlan & {
+  id: string;
+  savedAt: string;
 };
 
 const STORAGE_VERSION = "v1";
@@ -41,6 +48,8 @@ const defaultPlan: WeeklyPlan = {
   focusChannel: "Passivo Frio",
   mainGoal: "",
   correctiveAction: "",
+  alertProblemId: "",
+  alertAction: "",
   owner: "",
   dueDate: "",
   status: "A fazer"
@@ -48,12 +57,14 @@ const defaultPlan: WeeklyPlan = {
 
 type SelfManagementState = {
   weeklyPlan: WeeklyPlan;
+  savedPlans: SavedWeeklyPlan[];
   completedDaily: string[];
   history: HistoryEntry[];
 };
 
 const defaultState: SelfManagementState = {
   weeklyPlan: defaultPlan,
+  savedPlans: [],
   completedDaily: [],
   history: []
 };
@@ -72,6 +83,7 @@ function readState(storageKey: string): SelfManagementState {
     const parsed = JSON.parse(stored) as Partial<SelfManagementState>;
     return {
       weeklyPlan: { ...defaultPlan, ...parsed.weeklyPlan },
+      savedPlans: Array.isArray(parsed.savedPlans) ? parsed.savedPlans : [],
       completedDaily: Array.isArray(parsed.completedDaily) ? parsed.completedDaily : [],
       history: Array.isArray(parsed.history) ? parsed.history : []
     };
@@ -111,6 +123,7 @@ export function useSelfManagement(unitId?: string) {
         if (isMounted) {
           setState(remoteState ? {
             weeklyPlan: { ...defaultPlan, ...remoteState.weeklyPlan },
+            savedPlans: Array.isArray(remoteState.savedPlans) ? remoteState.savedPlans : [],
             completedDaily: Array.isArray(remoteState.completedDaily) ? remoteState.completedDaily : [],
             history: Array.isArray(remoteState.history) ? remoteState.history : []
           } : localState);
@@ -161,6 +174,28 @@ export function useSelfManagement(unitId?: string) {
     }));
   }
 
+  function savePlan() {
+    setState((current) => ({
+      ...current,
+      savedPlans: [
+        {
+          ...current.weeklyPlan,
+          id: `${Date.now()}`,
+          savedAt: new Date().toLocaleDateString("pt-BR")
+        },
+        ...current.savedPlans
+      ].slice(0, 12)
+    }));
+  }
+
+  function loadSavedPlan(plan: SavedWeeklyPlan) {
+    const { id: _id, savedAt: _savedAt, ...weeklyPlan } = plan;
+    setState((current) => ({
+      ...current,
+      weeklyPlan
+    }));
+  }
+
   function toggleDaily(item: string) {
     setState((current) => {
       const exists = current.completedDaily.includes(item);
@@ -195,6 +230,8 @@ export function useSelfManagement(unitId?: string) {
     state.weeklyPlan.focusChannel,
     state.weeklyPlan.mainGoal,
     state.weeklyPlan.correctiveAction,
+    state.weeklyPlan.alertProblemId,
+    state.weeklyPlan.alertAction,
     state.weeklyPlan.owner,
     state.weeklyPlan.dueDate
   ];
@@ -218,6 +255,8 @@ export function useSelfManagement(unitId?: string) {
     weeklyPlanXp,
     planAlert,
     updatePlan,
+    savePlan,
+    loadSavedPlan,
     toggleDaily,
     closeWeek
   };

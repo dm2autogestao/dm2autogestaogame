@@ -7,19 +7,20 @@ type SolutionCardProps = {
   title: string;
   xp: number;
   applied: boolean;
+  planned?: boolean;
   onToggle: () => void;
 };
 
-export function SolutionCard({ title, xp, applied, onToggle }: SolutionCardProps) {
+export function SolutionCard({ title, xp, applied, planned, onToggle }: SolutionCardProps) {
   return (
     <button
       type="button"
       onClick={onToggle}
       className={`flex w-full items-center gap-3 rounded-[22px] border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft ${
-        applied ? "border-emerald-200 bg-emerald-50" : "border-white/80 bg-white/90"
+        applied ? "border-emerald-200 bg-emerald-50" : planned ? "border-amber-200 bg-amber-50" : "border-white/80 bg-white/90"
       }`}
     >
-      <div className={`${applied ? "text-emerald-600" : "text-slate-300"}`}>
+      <div className={`${applied ? "text-emerald-600" : planned ? "text-amber-500" : "text-slate-300"}`}>
         {applied ? <CheckCircle2 className="h-6 w-6 fill-current" /> : <Circle className="h-6 w-6" />}
       </div>
       <div className="min-w-0 flex-1">

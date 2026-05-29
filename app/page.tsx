@@ -63,7 +63,7 @@ import { calculateInputMetrics, useCommercialInputs } from "@/hooks/use-commerci
 import type { CampaignRecord, ChannelInput, CommercialInputs } from "@/hooks/use-commercial-inputs";
 import { useGameProgress } from "@/hooks/use-game-progress";
 import { useSelfManagement } from "@/hooks/use-self-management";
-import type { WeeklyPlan } from "@/hooks/use-self-management";
+import type { SavedWeeklyPlan, WeeklyPlan } from "@/hooks/use-self-management";
 import {
   getFirebaseUnitPath,
   getLocalUnitStorageKey
@@ -148,6 +148,7 @@ type MasterUnitSummary = {
   campaignRoi: ChannelInput;
   campaignRecords: CampaignRecord[];
   weeklyPlan?: WeeklyPlan;
+  savedPlans?: SavedWeeklyPlan[];
   history: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
   lastActivity: string;
   firebasePaths: string[];
@@ -207,6 +208,19 @@ export default function Home() {
 
   const unitName = commercial.unitName.trim() || "Sua Unidade";
   const nextMove = getNextMove(commercial.inputs, weakestBlock?.id, diagnosis);
+  const weeklyActionKey = selfManagement.weeklyPlan.alertProblemId && selfManagement.weeklyPlan.alertAction
+    ? `${selfManagement.weeklyPlan.alertProblemId}:${selfManagement.weeklyPlan.alertAction}`
+    : "";
+  const weeklyActionDone = weeklyActionKey ? game.solutionsSet.has(weeklyActionKey) : false;
+  const weeklyProblem = problems.find((problem) => problem.id === selfManagement.weeklyPlan.alertProblemId);
+  const weeklyMetricAlert = weeklyActionKey && !weeklyActionDone
+    ? {
+        title: weeklyProblem?.title ?? "Plano semanal",
+        action: selfManagement.weeklyPlan.alertAction,
+        metric: weeklyProblem?.metric ?? "Ação corretiva pendente",
+        problemId: selfManagement.weeklyPlan.alertProblemId
+      }
+    : null;
 
   function openMissions(blockId: BlockId) {
     game.selectBlock(blockId);
@@ -472,6 +486,33 @@ export default function Home() {
                 </div>
               </section>
 
+              {weeklyMetricAlert ? (
+                <section className="mt-5 rounded-[32px] border border-amber-200 bg-amber-50 p-5 shadow-soft">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <BellRing className="mt-1 h-6 w-6 text-amber-600" />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide text-amber-700">Alerta vinculado ao plano semanal</p>
+                        <h2 className="mt-1 text-xl font-black text-ink">{weeklyMetricAlert.title}</h2>
+                        <p className="mt-1 text-sm font-bold text-amber-900">Ação pendente: {weeklyMetricAlert.action}</p>
+                        <p className="mt-1 text-xs font-bold text-amber-800">{weeklyMetricAlert.metric}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenProblemId(weeklyMetricAlert.problemId);
+                        setActiveTab("problems");
+                      }}
+                      className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-amber-600 bg-amber-500 px-4 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      Resolver em ações
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
               <section className="mt-5 rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <h2 className="mb-4 text-xl font-black text-ink">Métricas por blocos</h2>
                 <div className="space-y-3">
@@ -617,6 +658,7 @@ export default function Home() {
                         title={action}
                         xp={openProblem.xp}
                         applied={game.solutionsSet.has(`${openProblem.id}:${action}`)}
+                        planned={weeklyActionKey === `${openProblem.id}:${action}`}
                         onToggle={() => game.toggleSolution(openProblem.id, action)}
                       />
                     ))}
@@ -661,7 +703,11 @@ export default function Home() {
                   planProgress={selfManagement.planProgress}
                   weeklyPlanXp={selfManagement.weeklyPlanXp}
                   planAlert={selfManagement.planAlert}
+                  savedPlans={selfManagement.savedPlans}
+                  actionDone={weeklyActionDone}
                   onUpdate={selfManagement.updatePlan}
+                  onSave={selfManagement.savePlan}
+                  onLoad={selfManagement.loadSavedPlan}
                 />
               </section>
 
@@ -2562,7 +2608,18 @@ function MasterUnitDetail({ summary }: { summary: MasterUnitSummary }) {
           <div className="rounded-2xl bg-white p-3 shadow-sm">
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">Prioridade atual</p>
             <p className="mt-1 text-sm font-black text-ink">{summary.weeklyPlan?.priority || "Sem prioridade preenchida"}</p>
-            <p className="mt-2 text-xs font-bold text-slate-500">{summary.weeklyPlan?.correctiveAction || "Sem ação corretiva registrada"}</p>
+            <p className="mt-2 text-xs font-bold text-slate-500">{summary.weeklyPlan?.alertAction || summary.weeklyPlan?.correctiveAction || "Sem ação corretiva registrada"}</p>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {summary.savedPlans?.length ? (
+              summary.savedPlans.slice(0, 3).map((plan) => (
+                <div key={plan.id} className="rounded-2xl bg-white p-3 text-xs font-bold text-slate-600 shadow-sm">
+                  <span className="font-black text-ink">{plan.savedAt}</span> - {plan.priority || plan.alertAction || "Plano salvo"}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-white p-3 text-xs font-bold text-slate-500 shadow-sm">Sem planos salvos para consulta.</div>
+            )}
           </div>
           <div className="mt-3 grid gap-2">
             {summary.history.length ? (
@@ -2859,6 +2916,7 @@ function readMasterUnitSummary(unit: RegisteredUnit): MasterUnitSummary {
     campaignRoi: roiInput,
     campaignRecords: Array.isArray(commercial?.campaignRecords) ? commercial.campaignRecords : [],
     weeklyPlan: selfManagement?.weeklyPlan,
+    savedPlans: Array.isArray(selfManagement?.savedPlans) ? selfManagement.savedPlans : [],
     history,
     lastActivity: history[0]?.date ?? new Date(unit.createdAt).toLocaleDateString("pt-BR"),
     firebasePaths: [
@@ -2884,6 +2942,7 @@ type ProgressSnapshot = {
 type SelfManagementSnapshot = {
   completedDaily?: string[];
   weeklyPlan?: WeeklyPlan;
+  savedPlans?: SavedWeeklyPlan[];
   history?: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
 };
 
@@ -3042,14 +3101,37 @@ function WeeklyPlanCard({
   planProgress,
   weeklyPlanXp,
   planAlert,
+  savedPlans,
+  actionDone,
   onUpdate
+  ,onSave,
+  onLoad
 }: {
   plan: WeeklyPlan;
   planProgress: number;
   weeklyPlanXp: number;
   planAlert: string;
+  savedPlans: SavedWeeklyPlan[];
+  actionDone: boolean;
   onUpdate: <K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) => void;
+  onSave: () => void;
+  onLoad: (plan: SavedWeeklyPlan) => void;
 }) {
+  const selectedProblem = problems.find((problem) => problem.id === plan.alertProblemId) ?? problems[0];
+
+  function updateProblem(problemId: string) {
+    const problem = problems.find((item) => item.id === problemId) ?? problems[0];
+    const action = problem.actions[0] ?? "";
+    onUpdate("alertProblemId", problem.id);
+    onUpdate("alertAction", action);
+    onUpdate("correctiveAction", action);
+  }
+
+  function updateAction(action: string) {
+    onUpdate("alertAction", action);
+    onUpdate("correctiveAction", action);
+  }
+
   return (
     <article className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -3064,6 +3146,21 @@ function WeeklyPlanCard({
         </div>
         <XPBadge xp={weeklyPlanXp} label="XP do plano" tone="gold" />
       </div>
+      {plan.alertAction ? (
+        <div className={`mb-4 rounded-3xl border p-4 ${actionDone ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className="flex gap-3">
+            {actionDone ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" /> : <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-600" />}
+            <div>
+              <p className={`text-sm font-black ${actionDone ? "text-emerald-900" : "text-amber-900"}`}>
+                {actionDone ? "Ação concluída" : "Ação ainda aberta"}
+              </p>
+              <p className={`mt-1 text-xs font-bold ${actionDone ? "text-emerald-800" : "text-amber-800"}`}>
+                {plan.alertAction}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {planAlert ? (
         <div className="mb-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex gap-3">
@@ -3088,7 +3185,32 @@ function WeeklyPlanCard({
         <TextField label="Prioridade" value={plan.priority} placeholder="Ex: melhorar agendamento" onChange={(value) => onUpdate("priority", value)} />
         <SelectField label="Canal foco" value={plan.focusChannel} onChange={(value) => onUpdate("focusChannel", value)} />
         <TextField label="Meta principal" value={plan.mainGoal} placeholder="Ex: 20 agendamentos" onChange={(value) => onUpdate("mainGoal", value)} />
-        <TextField label="Ação corretiva" value={plan.correctiveAction} placeholder="Ex: revisar script" onChange={(value) => onUpdate("correctiveAction", value)} />
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Alerta que o plano resolve</span>
+          <select
+            value={plan.alertProblemId}
+            onChange={(event) => updateProblem(event.target.value)}
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="">Selecionar alerta</option>
+            {problems.map((problem) => (
+              <option key={problem.id} value={problem.id}>{problem.title}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Ação que sana o alerta</span>
+          <select
+            value={plan.alertAction}
+            onChange={(event) => updateAction(event.target.value)}
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="">Selecionar ação</option>
+            {selectedProblem.actions.map((action) => (
+              <option key={action} value={action}>{action}</option>
+            ))}
+          </select>
+        </label>
         <TextField label="Responsável" value={plan.owner} placeholder="Ex: Vendedor / Franqueado" onChange={(value) => onUpdate("owner", value)} />
         <label className="block">
           <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Prazo</span>
@@ -3112,6 +3234,32 @@ function WeeklyPlanCard({
           </select>
         </label>
       </div>
+      <button
+        type="button"
+        onClick={onSave}
+        className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        Salvar plano semanal
+      </button>
+      {savedPlans.length ? (
+        <div className="mt-4 rounded-3xl bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Planos salvos</p>
+          <div className="grid gap-2">
+            {savedPlans.slice(0, 4).map((savedPlan) => (
+              <button
+                key={savedPlan.id}
+                type="button"
+                onClick={() => onLoad(savedPlan)}
+                className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-300"
+              >
+                <p className="text-sm font-black text-ink">{savedPlan.priority || savedPlan.alertAction || "Plano sem título"}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{savedPlan.savedAt} - {savedPlan.status}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
