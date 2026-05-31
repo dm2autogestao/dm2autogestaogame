@@ -107,7 +107,7 @@ async function ensureAuthUser(unit: ReturnType<typeof normalizeUnitPayload>) {
 
 export async function GET() {
   if (!requireMaster()) {
-    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+    return NextResponse.json({ error: "Acesso master necessário." }, { status: 401 });
   }
 
   const snapshot = await getDb().collection("units").orderBy("createdAt", "desc").get();
@@ -122,12 +122,12 @@ export async function POST(request: Request) {
   const isMaster = requireMaster();
 
   if (!unit.cnpj || !unit.unitName || !unit.email || !unit.password) {
-    return NextResponse.json({ error: "Dados obrigatorios ausentes." }, { status: 400 });
+    return NextResponse.json({ error: "Dados obrigatórios ausentes." }, { status: 400 });
   }
 
   const existing = await getDb().collection("units").doc(unit.cnpj).get();
   if (existing.exists && !isMaster) {
-    return NextResponse.json({ error: "Este CNPJ ja possui cadastro." }, { status: 409 });
+    return NextResponse.json({ error: "Este CNPJ já possui cadastro." }, { status: 409 });
   }
 
   const password = hashPassword(unit.password);
@@ -149,14 +149,14 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   if (!requireMaster()) {
-    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+    return NextResponse.json({ error: "Acesso master necessário." }, { status: 401 });
   }
 
   const body = (await request.json()) as UnitPayload & { originalCnpj?: string; resetPassword?: boolean };
   const originalCnpj = cleanUnitId(body.originalCnpj ?? body.cnpj);
 
   if (!originalCnpj) {
-    return NextResponse.json({ error: "CNPJ obrigatorio." }, { status: 400 });
+    return NextResponse.json({ error: "CNPJ obrigatório." }, { status: 400 });
   }
 
   const unit = normalizeUnitPayload(body);
@@ -196,14 +196,14 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   if (!requireMaster()) {
-    return NextResponse.json({ error: "Acesso master necessario." }, { status: 401 });
+    return NextResponse.json({ error: "Acesso master necessário." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const unitId = cleanUnitId(searchParams.get("unitId"));
 
   if (!unitId) {
-    return NextResponse.json({ error: "unitId obrigatorio." }, { status: 400 });
+    return NextResponse.json({ error: "unitId obrigatório." }, { status: 400 });
   }
 
   await getDb().collection("units").doc(unitId).delete();

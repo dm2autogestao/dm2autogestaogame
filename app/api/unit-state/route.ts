@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const unitId = cleanUnitId(searchParams.get("unitId"));
 
   if (!unitId) {
-    return NextResponse.json({ error: "unitId obrigatorio" }, { status: 400 });
+    return NextResponse.json({ error: "unitId obrigatório" }, { status: 400 });
   }
 
   if (!canAccessUnit(unitId)) {
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   const unitId = cleanUnitId(body.unitId);
 
   if (!unitId) {
-    return NextResponse.json({ error: "unitId obrigatorio" }, { status: 400 });
+    return NextResponse.json({ error: "unitId obrigatório" }, { status: 400 });
   }
 
   if (!canAccessUnit(unitId)) {

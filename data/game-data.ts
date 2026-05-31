@@ -207,7 +207,7 @@ export const journeyBlocks: JourneyBlock[] = [
     xp: 160,
     accent: "#F97316",
     short: "Leitura do funil",
-    explanation: "Sem indicador, a unidade não sabe se o problema esta em lead, agenda, comparecimento ou venda."
+    explanation: "Sem indicador, a unidade não sabe se o problema está em lead, agenda, comparecimento ou venda."
   },
   {
     id: "intervencoes",
@@ -218,7 +218,7 @@ export const journeyBlocks: JourneyBlock[] = [
     xp: 180,
     accent: "#EF4444",
     short: "Ações corretivas",
-    explanation: "Quando um número cai, o jogo mostra a causa provavel e a ação corretiva da semana."
+    explanation: "Quando um número cai, o jogo mostra a causa provável e a ação corretiva da semana."
   }
 ];
 
@@ -323,7 +323,7 @@ export const captureChannels: CaptureChannel[] = [
     ],
     interventions: [
       { trigger: "CPA alto", actions: ["Revisar criativo", "Revisar público", "Revisar oferta", "Revisar ICP", "Trocar campanha"] },
-      { trigger: "Lead ruim", actions: ["Revisar promêssa", "Revisar segmentação", "Revisar canal", "Alinhar marketing com comercial"] }
+      { trigger: "Lead ruim", actions: ["Revisar promessa", "Revisar segmentação", "Revisar canal", "Alinhar marketing com comercial"] }
     ]
   },
   {
@@ -373,11 +373,11 @@ export const captureChannels: CaptureChannel[] = [
       { label: "Venda", value: "44%", trend: "+2%" },
       { label: "Custo teste", value: "R$ 480", trend: "controlado" }
     ],
-    channels: ["Radio", "Outdoor", "Redes sociais", "Blitz", "Panfletagem", "Lista fria", "Ligação ativa", "Campanha local"],
+    channels: ["Rádio", "Outdoor", "Redes sociais", "Blitz", "Panfletagem", "Lista fria", "Ligação ativa", "Campanha local"],
     notes: ["Antes de investir muito, teste o canal com baixo custo e valide se gera lead quente."],
     interventions: [
       { trigger: "Não gerar lead", actions: ["Trocar mídia", "Ajustar mensagem", "Ajustar região", "Revisar ICP"] },
-      { trigger: "Gerar lead ruim", actions: ["Revisar canal", "Revisar promêssa", "Melhorar qualificação"] }
+      { trigger: "Gerar lead ruim", actions: ["Revisar canal", "Revisar promessa", "Melhorar qualificação"] }
     ]
   },
   {
@@ -451,12 +451,12 @@ export const problems: Problem[] = [
   {
     id: "cpl-alto",
     title: "CPL alto",
-    symptom: "O lead entra caro antes mêsmo da qualificação.",
+    symptom: "O lead entra caro antes mesmo da qualificação.",
     icon: Zap,
     metric: "CPL deve cair",
     xp: 25,
-    causes: ["Promêssa pouco atrativa", "Canal caro", "Segmentação ampla", "Criativo cansado"],
-    actions: ["Ajustar promêssa", "Testar criativo", "Separar campanhas por público", "Comparar canais"]
+    causes: ["Promessa pouco atrativa", "Canal caro", "Segmentação ampla", "Criativo cansado"],
+    actions: ["Ajustar promessa", "Testar criativo", "Separar campanhas por público", "Comparar canais"]
   },
   {
     id: "poucos-leads",
@@ -466,7 +466,7 @@ export const problems: Problem[] = [
     metric: "Volume de leads deve subir",
     xp: 25,
     causes: ["Baixa frequência", "Canal pouco ativo", "Oferta escondida", "Público pequeno"],
-    actions: ["Revisar canal", "Aumentar frequência", "Testar nova mídia", "Ajustar promêssa", "Validar público"]
+    actions: ["Revisar canal", "Aumentar frequência", "Testar nova mídia", "Ajustar promessa", "Validar público"]
   },
   {
     id: "lead-desqualificado",
@@ -475,8 +475,8 @@ export const problems: Problem[] = [
     icon: Target,
     metric: "Qualidade do lead deve subir",
     xp: 25,
-    causes: ["ICP errado", "Promêssa atrai curiosos", "Segmentação ruim", "Canal desalinhado"],
-    actions: ["Revisar ICP", "Revisar promêssa", "Revisar segmentação", "Alinhar marketing com comercial"]
+    causes: ["ICP errado", "Promessa atrai curiosos", "Segmentação ruim", "Canal desalinhado"],
+    actions: ["Revisar ICP", "Revisar promessa", "Revisar segmentação", "Alinhar marketing com comercial"]
   },
   {
     id: "baixa-resposta",
@@ -546,7 +546,7 @@ export const problems: Problem[] = [
     metric: "Execução diária deve subir",
     xp: 25,
     causes: ["Meta confusa", "Sem acompanhamento", "Script ignorado", "Baixa disciplina"],
-    actions: ["Revisar rotina", "Acompanhar diáriamente", "Definir meta simples", "Treinar script", "Escutar ligações", "Corrigir comportamento"]
+    actions: ["Revisar rotina", "Acompanhar diariamente", "Definir meta simples", "Treinar script", "Escutar ligações", "Corrigir comportamento"]
   },
   {
     id: "franqueado-não-executa",

@@ -604,7 +604,7 @@ export default function Home() {
                 />
                 <GuidanceCard
                   title="2. Escolha uma ação"
-                  text="Não tente corrigir tudo ao mêsmo tempo. Aplique uma ação por semana e acompanhe a métrica."
+                  text="Não tente corrigir tudo ao mesmo tempo. Aplique uma ação por semana e acompanhe a métrica."
                   icon={ShieldAlert}
                 />
                 <GuidanceCard
@@ -2851,7 +2851,7 @@ function getNetworkCorrectiveActions(summaries: MasterUnitSummary[]) {
     {
       title: "Campanhas com ROI baixo",
       reason: lowRoiCount ? `${lowRoiCount} unidade(s) precisam revisar retorno de campanha.` : "ROI da rede sem alerta crítico no momento.",
-      steps: ["revisar público", "revisar criativo", "validar promêssa", "monitorar CPV"]
+      steps: ["revisar público", "revisar criativo", "validar promessa", "monitorar CPV"]
     },
     {
       title: "Unidades com pouco progresso",
@@ -3755,7 +3755,7 @@ function getRoasDiagnosis(input: ChannelInput, metrics: ReturnType<typeof calcul
   }
 
   if (lowRoas && cplHigh) {
-    return ["revisar público", "revisar criativo", "revisar promêssa", "validar ICP", "testar nova campanha"];
+    return ["revisar público", "revisar criativo", "revisar promessa", "validar ICP", "testar nova campanha"];
   }
 
   if (lowRoas && manyLeadsFewSchedules) {
@@ -4098,7 +4098,7 @@ function RoasCalculator({
         </div>
         <p className="mt-2 text-sm font-bold text-slate-700">{status.message}</p>
         <div className="mt-3">
-          <ProgressBar value={progress} color={status.color} label="Progresso ate ROAS 6x" compact />
+          <ProgressBar value={progress} color={status.color} label="Progresso até ROAS 6x" compact />
         </div>
       </div>
 
