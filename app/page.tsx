@@ -1418,7 +1418,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
       <section
         className="relative hidden min-h-screen overflow-hidden bg-emerald-950 lg:block"
         style={{
-          backgroundImage: "linear-gradient(90deg, rgba(3, 48, 39, 0.12), rgba(3, 48, 39, 0.04)), url('/login-clinic.png')",
+          backgroundImage: "linear-gradient(90deg, rgba(3, 48, 39, 0.12), rgba(3, 48, 39, 0.04)), url('/login-clinic.jpeg')",
           backgroundPosition: "center",
           backgroundSize: "cover"
         }}
