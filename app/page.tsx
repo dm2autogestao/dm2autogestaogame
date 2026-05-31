@@ -184,7 +184,7 @@ export default function Home() {
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
   const game = useGameProgress(activeUnitId);
-  const commercial = useCommercialInputs(activeUnitId);
+  const commercial = useCommercialInputs(activeUnitId, authSession?.unitName);
   const selfManagement = useSelfManagement(activeUnitId);
 
   const selectedBlock = journeyBlocks.find((block) => block.id === game.selectedBlockId) ?? journeyBlocks[0];

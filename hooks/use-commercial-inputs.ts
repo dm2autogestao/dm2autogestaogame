@@ -119,21 +119,25 @@ function mergeCommercialInputs(stored: Partial<CommercialInputs>): CommercialInp
   };
 }
 
-function readProfile(storageKey: string): CommercialProfile {
+function resolveUnitName(value: unknown, fallback = "Sua Unidade") {
+  return typeof value === "string" && value.trim() && value !== "Sua Unidade" ? value : fallback;
+}
+
+function readProfile(storageKey: string, fallbackUnitName = "Sua Unidade"): CommercialProfile {
   if (typeof window === "undefined") {
-    return defaultProfile;
+    return { ...defaultProfile, unitName: fallbackUnitName };
   }
 
   try {
     const stored = window.localStorage.getItem(storageKey) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) {
-      return defaultProfile;
+      return { ...defaultProfile, unitName: fallbackUnitName };
     }
 
     const parsed = JSON.parse(stored);
     if (parsed.channels) {
       return {
-        unitName: typeof parsed.unitName === "string" && parsed.unitName.trim() ? parsed.unitName : "Sua Unidade",
+        unitName: resolveUnitName(parsed.unitName, fallbackUnitName),
         channels: mergeCommercialInputs(parsed.channels),
         campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...parsed.campaignRoi },
         campaignRecords: Array.isArray(parsed.campaignRecords) ? parsed.campaignRecords.map((record: Partial<CampaignRecord>) => ({
@@ -147,26 +151,27 @@ function readProfile(storageKey: string): CommercialProfile {
     }
 
     return {
-      unitName: "Sua Unidade",
+      unitName: fallbackUnitName,
       channels: mergeCommercialInputs(parsed),
       campaignRoi: defaultCommercialInputs["passivo-frio"],
       campaignRecords: []
     };
   } catch {
-    return defaultProfile;
+    return { ...defaultProfile, unitName: fallbackUnitName };
   }
 }
 
-export function useCommercialInputs(unitId?: string) {
+export function useCommercialInputs(unitId?: string, registeredUnitName?: string) {
   const [profile, setProfile] = useState<CommercialProfile>(defaultProfile);
   const [isReady, setIsReady] = useState(false);
   const storageKey = getLocalUnitStorageKey(unitId, "commercialInputs", STORAGE_VERSION);
+  const fallbackUnitName = registeredUnitName?.trim() || "Sua Unidade";
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadProfile() {
-      const localProfile = readProfile(storageKey);
+      const localProfile = readProfile(storageKey, fallbackUnitName);
 
       if (!unitId) {
         if (isMounted) {
@@ -182,10 +187,11 @@ export function useCommercialInputs(unitId?: string) {
         });
         const result = await response.json();
         const remoteProfile = result?.data?.commercialInputs;
+        const remoteUnitName = result?.data?.unitName;
 
         if (isMounted) {
           setProfile(remoteProfile?.channels ? {
-            unitName: typeof remoteProfile.unitName === "string" ? remoteProfile.unitName : localProfile.unitName,
+            unitName: resolveUnitName(remoteProfile.unitName, resolveUnitName(remoteUnitName, localProfile.unitName)),
             channels: mergeCommercialInputs(remoteProfile.channels),
             campaignRoi: { ...defaultCommercialInputs["passivo-frio"], ...remoteProfile.campaignRoi },
             campaignRecords: Array.isArray(remoteProfile.campaignRecords) ? remoteProfile.campaignRecords.map((record: Partial<CampaignRecord>) => ({
@@ -212,7 +218,7 @@ export function useCommercialInputs(unitId?: string) {
     return () => {
       isMounted = false;
     };
-  }, [storageKey, unitId]);
+  }, [fallbackUnitName, storageKey, unitId]);
 
   useEffect(() => {
     if (isReady) {

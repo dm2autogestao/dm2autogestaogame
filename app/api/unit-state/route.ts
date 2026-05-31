@@ -55,9 +55,13 @@ export async function POST(request: Request) {
   }
 
   const payload: Record<string, unknown> = {
-    unitName: body.unitName ?? "Sua Unidade",
     updatedAt: FieldValue.serverTimestamp()
   };
+  const nextUnitName = typeof body.unitName === "string" ? body.unitName.trim() : "";
+
+  if (nextUnitName && nextUnitName !== "Sua Unidade") {
+    payload.unitName = nextUnitName;
+  }
 
   if (Object.prototype.hasOwnProperty.call(body, "commercialInputs")) {
     payload.commercialInputs = body.commercialInputs;
