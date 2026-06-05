@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 export type AppSession = {
   role: "master" | "franchisee";
   cnpj?: string;
+  masterEmail?: string;
+  masterAccessRole?: "admin" | "field_manager" | "operations";
   exp: number;
 };
 

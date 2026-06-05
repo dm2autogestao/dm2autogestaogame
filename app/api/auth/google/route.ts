@@ -5,6 +5,7 @@ import { getDb } from "@/lib/firestore-admin";
 import { COOKIE_NAME, createSessionToken, getSessionCookieOptions } from "@/lib/session-security";
 
 export const runtime = "nodejs";
+const MASTER_TEAM_DOMAIN = "@doutodm2franquias.com.br";
 
 type GoogleLoginPayload = {
   idToken?: string;
@@ -74,20 +75,47 @@ export async function POST(request: Request) {
     }
 
     if (role === "master") {
-      const masterEmail = (process.env.MASTER_EMAIL ?? "master@franquia.local").toLowerCase();
+      const masterEmail = (process.env.MASTER_EMAIL ?? "").trim().toLowerCase();
+      const configuredMasterLogin = Boolean(masterEmail) && email === masterEmail;
+      let sessionName = "Franqueadora";
+      let sessionAccessRole: "admin" | "field_manager" | "operations" = "admin";
 
-      if (email !== masterEmail) {
-        return NextResponse.json({ error: "Esta conta Google não está liberada como franqueadora." }, { status: 401 });
+      if (!configuredMasterLogin) {
+        if (!email.endsWith(MASTER_TEAM_DOMAIN)) {
+          return NextResponse.json({ error: `Use uma conta Google corporativa ${MASTER_TEAM_DOMAIN}.` }, { status: 403 });
+        }
+
+        const teamDoc = await db.collection("masterTeam").doc(email).get();
+        if (!teamDoc.exists) {
+          return NextResponse.json({ error: "Esta conta Google não está liberada como franqueadora." }, { status: 401 });
+        }
+
+        const teamData = teamDoc.data() ?? {};
+        if (teamData.status === "blocked") {
+          return NextResponse.json({ error: "Este acesso master está bloqueado." }, { status: 403 });
+        }
+
+        sessionName = typeof teamData.name === "string" && teamData.name.trim() ? teamData.name.trim() : displayName;
+        sessionAccessRole = teamData.accessRole === "admin" || teamData.accessRole === "field_manager" || teamData.accessRole === "operations"
+          ? teamData.accessRole
+          : "operations";
+        await teamDoc.ref.set({ lastLoginAt: FieldValue.serverTimestamp() }, { merge: true });
       }
 
       const response = NextResponse.json({
         ok: true,
         session: {
           role: "master",
-          unitName: "Franqueadora"
+          unitName: sessionName,
+          masterEmail: email,
+          masterAccessRole: sessionAccessRole
         }
       });
-      response.cookies.set(COOKIE_NAME, createSessionToken({ role: "master" }), getSessionCookieOptions({ remember }));
+      response.cookies.set(
+        COOKIE_NAME,
+        createSessionToken({ role: "master", masterEmail: email, masterAccessRole: sessionAccessRole }),
+        getSessionCookieOptions({ remember })
+      );
 
       return response;
     }

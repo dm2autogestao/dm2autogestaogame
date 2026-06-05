@@ -81,6 +81,30 @@ type AuthSession = {
   responsibleName?: string;
   city?: string;
   state?: string;
+  masterEmail?: string;
+  masterAccessRole?: MasterTeamRole;
+};
+
+type MasterTeamRole = "admin" | "field_manager" | "operations";
+type MasterTeamStatus = "active" | "blocked";
+
+type MasterTeamMember = {
+  id: string;
+  name: string;
+  email: string;
+  accessRole: MasterTeamRole;
+  status: MasterTeamStatus;
+  createdAt: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
+  passwordUpdatedAt?: string;
+};
+
+type MasterTeamForm = {
+  name: string;
+  email: string;
+  accessRole: MasterTeamRole;
+  password: string;
 };
 
 type RegisteredUnit = {
@@ -171,6 +195,7 @@ const masterNavItems = [
   { id: "overview", label: "Geral", icon: BarChart3, group: "Rede" },
   { id: "analytics", label: "Analytics", icon: PieChart, group: "Rede" },
   { id: "units", label: "Unidades", icon: Building2, group: "Rede" },
+  { id: "team", label: "Equipe", icon: UserRound, group: "Controle" },
   { id: "register", label: "Cadastrar", icon: PlusCircle, group: "Controle" },
   { id: "approvals", label: "Aprovações", icon: ShieldCheck, group: "Controle" },
   { id: "correctives", label: "Ações", icon: ShieldAlert, group: "Controle" },
@@ -966,6 +991,64 @@ async function deleteUnitFromDb(cnpj: string) {
   });
 }
 
+async function fetchMasterTeamFromDb() {
+  const response = await fetch("/api/master-team", {
+    cache: "no-store",
+    credentials: "include"
+  });
+  const result = await readJsonResponse(response, "Não foi possível carregar a equipe master.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Não foi possível carregar a equipe master.");
+  }
+
+  return Array.isArray(result.members) ? result.members as MasterTeamMember[] : [];
+}
+
+async function createMasterTeamMember(member: MasterTeamForm) {
+  const response = await fetch("/api/master-team", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(member)
+  });
+  const result = await readJsonResponse(response, "Não foi possível cadastrar o acesso da equipe.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Não foi possível cadastrar o acesso da equipe.");
+  }
+
+  return result.member as MasterTeamMember;
+}
+
+async function updateMasterTeamMember(originalEmail: string, data: Partial<MasterTeamMember> & { password?: string; resetPassword?: boolean }) {
+  const response = await fetch("/api/master-team", {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ originalEmail, ...data })
+  });
+  const result = await readJsonResponse(response, "Não foi possível atualizar o acesso da equipe.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Não foi possível atualizar o acesso da equipe.");
+  }
+
+  return result as { temporaryPassword?: string };
+}
+
+async function deleteMasterTeamMember(email: string) {
+  const response = await fetch(`/api/master-team?email=${encodeURIComponent(email)}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+  const result = await readJsonResponse(response, "Não foi possível remover o acesso da equipe.");
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Não foi possível remover o acesso da equipe.");
+  }
+}
+
 async function readJsonResponse(response: Response, fallbackMessage: string) {
   const text = await response.text();
 
@@ -1553,7 +1636,9 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
               <form onSubmit={submitRecover} className="grid gap-3">
                 <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "master@franquia.com"} />
                 <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
-                  Enviaremos um link de redefinição para o e-mail cadastrado da unidade.
+                  {role === "franchisee"
+                    ? "Enviaremos um link de redefinição para o e-mail cadastrado da unidade."
+                    : "Para equipe master, um administrador deve resetar ou reativar o acesso na aba Equipe."}
                 </p>
                 <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
                   <KeyRound className="h-4 w-4" />
@@ -1618,6 +1703,7 @@ function AuthInput({
 
 function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout: () => void }) {
   const [units, setUnits] = useState<RegisteredUnit[]>([]);
+  const [teamMembers, setTeamMembers] = useState<MasterTeamMember[]>([]);
   const [selectedUnitCnpj, setSelectedUnitCnpj] = useState("");
   const [masterNotice, setMasterNotice] = useState("");
   const [masterTab, setMasterTab] = useState("overview");
@@ -1636,9 +1722,63 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
       });
   }, []);
 
+  useEffect(() => {
+    void fetchMasterTeamFromDb()
+      .then((members) => setTeamMembers(members))
+      .catch(() => setMasterNotice("Não foi possível carregar a equipe master. Verifique sua permissão de administrador."));
+  }, []);
+
   function persistUnits(nextUnits: RegisteredUnit[]) {
     setUnits(nextUnits);
     saveRegisteredUnits(nextUnits);
+  }
+
+  function refreshMasterTeam() {
+    void fetchMasterTeamFromDb()
+      .then((members) => setTeamMembers(members))
+      .catch(() => setMasterNotice("Não foi possível atualizar a lista da equipe master."));
+  }
+
+  async function createTeamMember(form: MasterTeamForm) {
+    const nextMember = await createMasterTeamMember(form);
+    setTeamMembers((current) => [nextMember, ...current]);
+    setMasterNotice("Acesso da equipe master cadastrado.");
+  }
+
+  function updateTeamMemberStatus(email: string, status: MasterTeamStatus) {
+    setTeamMembers((current) => current.map((member) => member.email === email ? { ...member, status } : member));
+    void updateMasterTeamMember(email, { status })
+      .then(() => setMasterNotice(status === "active" ? "Acesso reativado." : "Acesso bloqueado."))
+      .catch((error) => {
+        refreshMasterTeam();
+        setMasterNotice(error instanceof Error ? error.message : "Não foi possível alterar o status do acesso.");
+      });
+  }
+
+  function resetTeamMemberPassword(email: string) {
+    void updateMasterTeamMember(email, { resetPassword: true })
+      .then((result) => {
+        refreshMasterTeam();
+        setMasterNotice(`Senha temporária gerada para ${email}: ${result.temporaryPassword ?? "DM2@123456"}`);
+      })
+      .catch((error) => setMasterNotice(error instanceof Error ? error.message : "Não foi possível resetar a senha."));
+  }
+
+  function removeTeamMember(email: string) {
+    const member = teamMembers.find((item) => item.email === email);
+    const confirmed = typeof window === "undefined" || window.confirm(`Remover o acesso de ${member?.name ?? email}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setTeamMembers((current) => current.filter((item) => item.email !== email));
+    void deleteMasterTeamMember(email)
+      .then(() => setMasterNotice("Acesso removido da equipe master."))
+      .catch((error) => {
+        refreshMasterTeam();
+        setMasterNotice(error instanceof Error ? error.message : "Não foi possível remover o acesso.");
+      });
   }
 
   function updateUnitStatus(cnpj: string, status: RegisteredUnit["status"]) {
@@ -1851,6 +1991,19 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
             </Screen>
           ) : null}
 
+          {masterTab === "team" ? (
+            <Screen key="master-team">
+              <MasterTeamSection
+                members={teamMembers}
+                currentEmail={session.masterEmail}
+                onCreate={createTeamMember}
+                onStatusChange={updateTeamMemberStatus}
+                onResetPassword={resetTeamMemberPassword}
+                onDelete={removeTeamMember}
+              />
+            </Screen>
+          ) : null}
+
           {masterTab === "register" ? (
             <Screen key="master-register">
               <MasterRegisterUnit onCreate={createUnitFromMaster} />
@@ -1918,6 +2071,193 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
         />
       </div>
     </label>
+  );
+}
+
+function getMasterTeamRoleLabel(role: MasterTeamRole) {
+  if (role === "admin") return "Administrador";
+  if (role === "field_manager") return "Gestor de campo";
+  return "Operacional";
+}
+
+function getMasterTeamStatusLabel(status: MasterTeamStatus) {
+  return status === "active" ? "Ativo" : "Bloqueado";
+}
+
+function getMasterTeamStatusClass(status: MasterTeamStatus) {
+  return status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700";
+}
+
+function MasterTeamSection({
+  members,
+  currentEmail,
+  onCreate,
+  onStatusChange,
+  onResetPassword,
+  onDelete
+}: {
+  members: MasterTeamMember[];
+  currentEmail?: string;
+  onCreate: (form: MasterTeamForm) => Promise<void>;
+  onStatusChange: (email: string, status: MasterTeamStatus) => void;
+  onResetPassword: (email: string) => void;
+  onDelete: (email: string) => void;
+}) {
+  const [form, setForm] = useState<MasterTeamForm>({
+    name: "",
+    email: "",
+    accessRole: "field_manager",
+    password: "DM2@123456"
+  });
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function update<Key extends keyof MasterTeamForm>(key: Key, value: MasterTeamForm[Key]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      setMessage("Preencha nome, e-mail corporativo e senha inicial.");
+      return;
+    }
+
+    if (!form.email.trim().toLowerCase().endsWith("@doutodm2franquias.com.br")) {
+      setMessage("Use somente e-mails @doutodm2franquias.com.br.");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setMessage("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await onCreate({
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        accessRole: form.accessRole,
+        password: form.password
+      });
+      setForm({ name: "", email: "", accessRole: "field_manager", password: "DM2@123456" });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível cadastrar este acesso.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <form onSubmit={submit} className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="mb-4">
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Equipe master</p>
+          <h2 className="text-xl font-black text-ink">Criar acesso interno</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">Somente e-mails @doutodm2franquias.com.br podem entrar na área master.</p>
+        </div>
+
+        {message ? (
+          <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            {message}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3">
+          <AuthInput icon={UserRound} label="Nome" value={form.name} onChange={(value) => update("name", value)} placeholder="Nome da pessoa" />
+          <AuthInput icon={Mail} label="E-mail corporativo" value={form.email} onChange={(value) => update("email", value)} placeholder="nome@doutodm2franquias.com.br" />
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Nível de acesso</span>
+            <select
+              value={form.accessRole}
+              onChange={(event) => update("accessRole", event.target.value as MasterTeamRole)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="admin">Administrador</option>
+              <option value="field_manager">Gestor de campo</option>
+              <option value="operations">Operacional</option>
+            </select>
+          </label>
+          <AuthInput icon={KeyRound} label="Senha inicial" type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="Mínimo 6 caracteres" />
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <PlusCircle className="h-4 w-4" />
+            {saving ? "Salvando..." : "Criar acesso"}
+          </button>
+        </div>
+      </form>
+
+      <section className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Controle de acesso</p>
+            <h2 className="text-xl font-black text-ink">Usuários da franqueadora</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Bloqueie quem saiu da empresa, resete senha ou remova o acesso.</p>
+          </div>
+          <XPBadge xp={members.length} label="acessos" tone="blue" />
+        </div>
+
+        <div className="grid gap-3">
+          {members.length ? members.map((member) => {
+            const isCurrentUser = currentEmail?.toLowerCase() === member.email.toLowerCase();
+
+            return (
+              <article key={member.email} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-ink">{member.name}</p>
+                    <p className="truncate text-xs font-bold text-slate-500">{member.email}</p>
+                    <p className="mt-1 text-xs font-black uppercase tracking-wide text-emerald-700">{getMasterTeamRoleLabel(member.accessRole)}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${getMasterTeamStatusClass(member.status)}`}>
+                    {getMasterTeamStatusLabel(member.status)}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onStatusChange(member.email, member.status === "active" ? "blocked" : "active")}
+                    disabled={isCurrentUser}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Ban className="h-4 w-4" />
+                    {member.status === "active" ? "Bloquear" : "Reativar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onResetPassword(member.email)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Resetar senha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(member.email)}
+                    disabled={isCurrentUser}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remover
+                  </button>
+                </div>
+              </article>
+            );
+          }) : (
+            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">
+              Nenhum acesso de equipe cadastrado ainda.
+            </div>
+          )}
+        </div>
+      </section>
+    </section>
   );
 }
 
