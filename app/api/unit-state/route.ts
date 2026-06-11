@@ -10,6 +10,7 @@ type UnitStatePayload = {
   commercialInputs?: unknown;
   gameProgress?: unknown;
   selfManagement?: unknown;
+  fillingHistory?: unknown;
 };
 
 function cleanUnitId(value: string | null | undefined) {
@@ -73,6 +74,10 @@ export async function POST(request: Request) {
 
   if (Object.prototype.hasOwnProperty.call(body, "selfManagement")) {
     payload.selfManagement = body.selfManagement;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "fillingHistory")) {
+    payload.fillingHistory = body.fillingHistory;
   }
 
   await getDb().collection("units").doc(unitId).set(payload, { merge: true });

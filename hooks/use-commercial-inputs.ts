@@ -312,6 +312,7 @@ export function useCommercialInputs(unitId?: string, registeredUnitName?: string
   }
 
   return {
+    isReady,
     unitName: profile.unitName,
     inputs: profile.channels,
     campaignRoi: profile.campaignRoi,

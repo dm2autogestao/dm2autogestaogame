@@ -125,6 +125,7 @@ type RegisteredUnit = {
   commercialInputs?: CommercialProfileSnapshot;
   gameProgress?: ProgressSnapshot;
   selfManagement?: SelfManagementSnapshot;
+  fillingHistory?: FillingHistorySnapshot;
 };
 
 type GoogleLoginResult =
@@ -173,9 +174,38 @@ type MasterUnitSummary = {
   campaignRecords: CampaignRecord[];
   weeklyPlan?: WeeklyPlan;
   savedPlans?: SavedWeeklyPlan[];
+  fillingHistory?: FillingHistorySnapshot;
   history: Array<{ id?: string; date: string; score: number; xp: number; bottleneck: string; action: string }>;
   lastActivity: string;
   firebasePaths: string[];
+};
+
+type FillingAreaKey = "commercial" | "campaigns" | "weeklyPlan" | "dailyRoutine" | "missions" | "actions";
+
+type FillingAreaStatus = {
+  id: FillingAreaKey;
+  label: string;
+  completed: boolean;
+  percent: number;
+  detail: string;
+};
+
+type FillingCycleSnapshot = {
+  id: string;
+  label: string;
+  startsAt: string;
+  endsAt: string;
+  percent: number;
+  level: string;
+  updatedAt: string;
+  areas: FillingAreaStatus[];
+};
+
+type FillingHistorySnapshot = {
+  currentWeekly: FillingCycleSnapshot;
+  currentMonthly: FillingCycleSnapshot;
+  weeklyCycles: FillingCycleSnapshot[];
+  monthlyCycles: FillingCycleSnapshot[];
 };
 
 const AUTH_SESSION_KEY = "dm2-auth-session-v1";
@@ -195,6 +225,7 @@ const masterNavItems = [
   { id: "overview", label: "Geral", icon: BarChart3, group: "Rede" },
   { id: "analytics", label: "Analytics", icon: PieChart, group: "Rede" },
   { id: "units", label: "Unidades", icon: Building2, group: "Rede" },
+  { id: "filling", label: "Histórico", icon: NotepadText, group: "Rede" },
   { id: "team", label: "Equipe", icon: UserRound, group: "Controle" },
   { id: "register", label: "Cadastrar", icon: PlusCircle, group: "Controle" },
   { id: "approvals", label: "Aprovações", icon: ShieldCheck, group: "Controle" },
@@ -207,6 +238,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("journey");
   const [openProblemId, setOpenProblemId] = useState(problems[0].id);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
+  const [, setFillingHistory] = useState<FillingHistorySnapshot | undefined>(undefined);
   const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
   const game = useGameProgress(activeUnitId);
   const commercial = useCommercialInputs(activeUnitId, authSession?.unitName);
@@ -246,6 +278,63 @@ export default function Home() {
         problemId: selfManagement.weeklyPlan.alertProblemId
       }
     : null;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !activeUnitId) {
+      setFillingHistory(undefined);
+      return;
+    }
+
+    const storageKey = getLocalUnitStorageKey(activeUnitId, "fillingHistory", "v1");
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      setFillingHistory(stored ? JSON.parse(stored) as FillingHistorySnapshot : undefined);
+    } catch {
+      setFillingHistory(undefined);
+    }
+  }, [activeUnitId]);
+
+  useEffect(() => {
+    if (!activeUnitId || !commercial.isReady || !game.isReady || !selfManagement.isReady) {
+      return;
+    }
+
+    setFillingHistory((previous) => {
+      const nextHistory = buildFillingHistorySnapshot({ commercial, game, selfManagement, previous });
+      const storageKey = getLocalUnitStorageKey(activeUnitId, "fillingHistory", "v1");
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify(nextHistory));
+      }
+
+      void fetch("/api/unit-state", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          unitId: activeUnitId,
+          fillingHistory: nextHistory
+        })
+      }).catch(() => undefined);
+
+      return nextHistory;
+    });
+  }, [
+    activeUnitId,
+    commercial.isReady,
+    commercial.inputs,
+    commercial.campaignRecords,
+    commercial.campaignRoi,
+    game.isReady,
+    game.completedMissions,
+    game.appliedSolutions,
+    game.generalProgress,
+    selfManagement.isReady,
+    selfManagement.planProgress,
+    selfManagement.dailyProgress,
+    selfManagement.completedDaily,
+    selfManagement.weeklyPlan
+  ]);
 
   function openMissions(blockId: BlockId) {
     game.selectBlock(blockId);
@@ -1183,6 +1272,140 @@ function normalizeCnpj(value: string) {
   return value.replace(/\D/g, "").slice(0, 14);
 }
 
+function getCycleStart(days: number) {
+  const now = new Date();
+  const base = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  const elapsedDays = Math.floor((Date.now() - base.getTime()) / 86400000);
+  const cycleIndex = Math.floor(elapsedDays / days);
+  return new Date(base.getTime() + cycleIndex * days * 86400000);
+}
+
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function getFillingLevel(percent: number) {
+  if (percent >= 90) return "Excelente";
+  if (percent >= 70) return "Bom";
+  if (percent >= 45) return "Em evolução";
+  if (percent > 0) return "Inicial";
+  return "Sem preenchimento";
+}
+
+function getCycleSnapshot(idPrefix: "weekly" | "monthly", days: number, areas: FillingAreaStatus[]) {
+  const startsAt = getCycleStart(days);
+  const endsAt = new Date(startsAt.getTime() + days * 86400000 - 1);
+  const percent = Math.round(areas.reduce((sum, area) => sum + area.percent, 0) / areas.length);
+
+  return {
+    id: `${idPrefix}-${startsAt.toISOString().slice(0, 10)}`,
+    label: `${formatShortDate(startsAt)} a ${formatShortDate(endsAt)}`,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    percent,
+    level: getFillingLevel(percent),
+    updatedAt: new Date().toISOString(),
+    areas
+  };
+}
+
+function hasCampaignData(input: ChannelInput) {
+  return Boolean(
+    input.nomeCampanha.trim() ||
+    input.responsavelCampanha.trim() ||
+    input.observacaoCampanha.trim() ||
+    input.investimento ||
+    input.receita ||
+    input.ticketMedio ||
+    input.leads ||
+    input.interacoes ||
+    input.agendamentos ||
+    input.comparecimentos ||
+    input.vendas ||
+    input.indicacoes
+  );
+}
+
+function mergeCycleHistory(current: FillingCycleSnapshot, existing?: FillingCycleSnapshot[]) {
+  const withoutCurrent = Array.isArray(existing) ? existing.filter((cycle) => cycle.id !== current.id) : [];
+  return [current, ...withoutCurrent].slice(0, 12);
+}
+
+function buildFillingHistorySnapshot({
+  commercial,
+  game,
+  selfManagement,
+  previous
+}: {
+  commercial: ReturnType<typeof useCommercialInputs>;
+  game: ReturnType<typeof useGameProgress>;
+  selfManagement: ReturnType<typeof useSelfManagement>;
+  previous?: FillingHistorySnapshot;
+}): FillingHistorySnapshot {
+  const filledChannels = Object.values(commercial.inputs).filter(hasCampaignData).length;
+  const commercialPercent = Math.round((filledChannels / Object.values(commercial.inputs).length) * 100);
+  const campaignRecordPercent = commercial.campaignRecords.length || hasCampaignData(commercial.campaignRoi) ? 100 : 0;
+  const missionPercent = game.generalProgress;
+  const solutionsDone = game.appliedSolutions.length;
+  const totalSolutions = problems.reduce((sum, problem) => sum + problem.actions.length, 0);
+  const actionPercent = totalSolutions ? Math.round((solutionsDone / totalSolutions) * 100) : 0;
+
+  const areas: FillingAreaStatus[] = [
+    {
+      id: "commercial",
+      label: "Métricas comerciais",
+      completed: commercialPercent >= 75,
+      percent: commercialPercent,
+      detail: `${filledChannels} de ${Object.values(commercial.inputs).length} canais preenchidos`
+    },
+    {
+      id: "campaigns",
+      label: "Campanhas",
+      completed: campaignRecordPercent === 100,
+      percent: campaignRecordPercent,
+      detail: commercial.campaignRecords.length ? `${commercial.campaignRecords.length} campanha(s) registradas` : "Nenhuma campanha registrada"
+    },
+    {
+      id: "weeklyPlan",
+      label: "Plano semanal",
+      completed: selfManagement.planProgress >= 100,
+      percent: selfManagement.planProgress,
+      detail: selfManagement.weeklyPlan.status
+    },
+    {
+      id: "dailyRoutine",
+      label: "Rotina diária",
+      completed: selfManagement.dailyProgress >= 70,
+      percent: selfManagement.dailyProgress,
+      detail: `${selfManagement.completedDaily.length} tarefas marcadas`
+    },
+    {
+      id: "missions",
+      label: "Metas do game",
+      completed: missionPercent >= 70,
+      percent: missionPercent,
+      detail: `${game.completedMissions.length} metas concluídas`
+    },
+    {
+      id: "actions",
+      label: "Ações corretivas",
+      completed: actionPercent >= 40,
+      percent: actionPercent,
+      detail: `${solutionsDone} ações concluídas`
+    }
+  ];
+
+  const currentWeekly = getCycleSnapshot("weekly", 7, areas);
+  const currentMonthly = getCycleSnapshot("monthly", 30, areas);
+
+  return {
+    currentWeekly,
+    currentMonthly,
+    weeklyCycles: mergeCycleHistory(currentWeekly, previous?.weeklyCycles),
+    monthlyCycles: mergeCycleHistory(currentMonthly, previous?.monthlyCycles)
+  };
+}
+
 function formatCnpj(value: string) {
   const digits = normalizeCnpj(value);
   if (digits.length !== 14) {
@@ -1709,6 +1932,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   const [masterTab, setMasterTab] = useState("overview");
   const [detailUnitCnpj, setDetailUnitCnpj] = useState<string | null>(null);
   const [editUnitCnpj, setEditUnitCnpj] = useState<string | null>(null);
+  const [fillingDetailCnpj, setFillingDetailCnpj] = useState<string | null>(null);
 
   useEffect(() => {
     void loadRegisteredUnits(false)
@@ -1906,6 +2130,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
   const bestRoiUnit = [...summaries].filter((item) => item.roi !== null).sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0))[0];
   const detailSummary = detailUnitCnpj ? summaries.find((summary) => summary.unit.cnpj === detailUnitCnpj) : undefined;
   const editSummary = editUnitCnpj ? summaries.find((summary) => summary.unit.cnpj === editUnitCnpj) : undefined;
+  const fillingDetailSummary = fillingDetailCnpj ? summaries.find((summary) => summary.unit.cnpj === fillingDetailCnpj) : undefined;
 
   return (
     <main className="min-h-screen text-ink">
@@ -1991,6 +2216,15 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
             </Screen>
           ) : null}
 
+          {masterTab === "filling" ? (
+            <Screen key="master-filling">
+              <MasterFillingHistorySection
+                summaries={summaries}
+                onOpenDetails={(cnpj) => setFillingDetailCnpj(cnpj)}
+              />
+            </Screen>
+          ) : null}
+
           {masterTab === "team" ? (
             <Screen key="master-team">
               <MasterTeamSection
@@ -2036,6 +2270,7 @@ function MasterDashboard({ session, onLogout }: { session: AuthSession; onLogout
 
       {detailSummary ? <UnitDetailModal summary={detailSummary} onClose={() => setDetailUnitCnpj(null)} /> : null}
       {editSummary ? <EditUnitModal summary={editSummary} onClose={() => setEditUnitCnpj(null)} onSave={updateUnitFromMaster} /> : null}
+      {fillingDetailSummary ? <FillingHistoryModal summary={fillingDetailSummary} onClose={() => setFillingDetailCnpj(null)} /> : null}
     </main>
   );
 }
@@ -2647,6 +2882,196 @@ function MasterUnitsSection({
   );
 }
 
+function getFillingCycle(summary: MasterUnitSummary, period: "weekly" | "monthly") {
+  return period === "weekly" ? summary.fillingHistory?.currentWeekly : summary.fillingHistory?.currentMonthly;
+}
+
+function getFillingStatus(summary: MasterUnitSummary) {
+  const weekly = getFillingCycle(summary, "weekly");
+  if (!weekly || weekly.percent === 0) return "Não preencheu";
+  if (weekly.percent < 45) return "Incompleto";
+  return "Preencheu";
+}
+
+function getFillingStatusClass(status: string) {
+  if (status === "Preencheu") return "bg-emerald-100 text-emerald-700";
+  if (status === "Incompleto") return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
+
+function MasterFillingHistorySection({
+  summaries,
+  onOpenDetails
+}: {
+  summaries: MasterUnitSummary[];
+  onOpenDetails: (cnpj: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredSummaries = summaries.filter((summary) => unitMatchesSearch(summary, search));
+  const filledCount = summaries.filter((summary) => getFillingStatus(summary) === "Preencheu").length;
+  const incompleteCount = summaries.filter((summary) => getFillingStatus(summary) === "Incompleto").length;
+  const emptyCount = summaries.filter((summary) => getFillingStatus(summary) === "Não preencheu").length;
+
+  return (
+    <section className="mt-5">
+      <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_320px] lg:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Histórico de preenchimento</p>
+            <h2 className="text-xl font-black text-ink">Acompanhamento semanal e mensal</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Veja quem atualizou a ferramenta, quem está incompleto e quem não preencheu.</p>
+          </div>
+          <SearchBox value={search} onChange={setSearch} placeholder="Buscar unidade, cidade, responsável..." />
+        </div>
+
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <MiniMetric label="Preencheram" value={`${filledCount}`} />
+          <MiniMetric label="Incompletos" value={`${incompleteCount}`} />
+          <MiniMetric label="Sem preencher" value={`${emptyCount}`} />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          {filteredSummaries.length ? filteredSummaries.map((summary) => {
+            const weekly = getFillingCycle(summary, "weekly");
+            const monthly = getFillingCycle(summary, "monthly");
+            const status = getFillingStatus(summary);
+
+            return (
+              <article key={summary.unit.cnpj} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-ink">{summary.unit.unitName}</p>
+                    <p className="truncate text-xs font-bold text-slate-500">{summary.unit.responsibleName} - {formatLocation(summary.unit)}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${getFillingStatusClass(status)}`}>
+                    {status}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Semana</p>
+                    <p className="mt-1 text-lg font-black text-ink">{weekly?.percent ?? 0}%</p>
+                    <p className="text-xs font-bold text-slate-500">{weekly?.level ?? "Sem preenchimento"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Mês</p>
+                    <p className="mt-1 text-lg font-black text-ink">{monthly?.percent ?? 0}%</p>
+                    <p className="text-xs font-bold text-slate-500">{monthly?.level ?? "Sem preenchimento"}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <ProgressBar value={weekly?.percent ?? 0} color="#14B8A6" label="Avanço semanal" compact />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-500">
+                    Última atualização: {weekly?.updatedAt ? new Date(weekly.updatedAt).toLocaleString("pt-BR") : "sem registro"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(summary.unit.cnpj)}
+                    className="inline-flex items-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white transition active:translate-y-1 active:border-b-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver avanço
+                  </button>
+                </div>
+              </article>
+            );
+          }) : (
+            <div className="rounded-3xl bg-slate-50 p-5 text-sm font-bold text-slate-500">
+              Nenhuma unidade encontrada.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary; onClose: () => void }) {
+  const history = summary.fillingHistory;
+  const weekly = history?.currentWeekly;
+  const monthly = history?.currentMonthly;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-4xl rounded-[30px] border border-slate-200 bg-white p-5 shadow-soft">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Detalhe de preenchimento</p>
+            <h2 className="text-xl font-black text-ink">{summary.unit.unitName}</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">{summary.unit.responsibleName} - {formatLocation(summary.unit)}</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-slate-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <article className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nível semanal</p>
+            <p className="mt-1 text-3xl font-black text-ink">{weekly?.percent ?? 0}%</p>
+            <p className="text-sm font-bold text-slate-600">{weekly?.level ?? "Sem preenchimento"} - {weekly?.label ?? "ciclo atual"}</p>
+          </article>
+          <article className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Nível mensal</p>
+            <p className="mt-1 text-3xl font-black text-ink">{monthly?.percent ?? 0}%</p>
+            <p className="text-sm font-bold text-slate-600">{monthly?.level ?? "Sem preenchimento"} - {monthly?.label ?? "ciclo atual"}</p>
+          </article>
+        </div>
+
+        <section className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Áreas preenchidas</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {(weekly?.areas ?? []).map((area) => (
+              <div key={area.id} className="rounded-2xl bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-black text-ink">{area.label}</p>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${area.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                    {area.completed ? "ok" : "pendente"}
+                  </span>
+                </div>
+                <ProgressBar value={area.percent} color={area.completed ? "#14B8A6" : "#F59E0B"} label={area.detail} compact />
+              </div>
+            ))}
+            {weekly?.areas?.length ? null : (
+              <p className="text-sm font-bold text-slate-500">Ainda não há histórico salvo para esta unidade.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-4 grid gap-3 md:grid-cols-2">
+          <CycleHistoryList title="Últimas semanas" cycles={history?.weeklyCycles ?? []} />
+          <CycleHistoryList title="Últimos meses" cycles={history?.monthlyCycles ?? []} />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function CycleHistoryList({ title, cycles }: { title: string; cycles: FillingCycleSnapshot[] }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4">
+      <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {cycles.length ? cycles.slice(0, 6).map((cycle) => (
+          <div key={cycle.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+            <div>
+              <p className="text-sm font-black text-ink">{cycle.label}</p>
+              <p className="text-xs font-bold text-slate-500">{cycle.level}</p>
+            </div>
+            <span className="text-sm font-black text-emerald-700">{cycle.percent}%</span>
+          </div>
+        )) : (
+          <p className="text-sm font-bold text-slate-500">Sem ciclos registrados.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MasterPendingApprovals({
   summaries,
   onApprove,
@@ -3215,9 +3640,11 @@ function readMasterUnitSummary(unit: RegisteredUnit): MasterUnitSummary {
   const progressKey = getLocalUnitStorageKey(unit.cnpj, "gameProgress", "v2");
   const commercialKey = getLocalUnitStorageKey(unit.cnpj, "commercialInputs", "v2");
   const selfManagementKey = getLocalUnitStorageKey(unit.cnpj, "selfManagement", "v1");
+  const fillingHistoryKey = getLocalUnitStorageKey(unit.cnpj, "fillingHistory", "v1");
   const progress = unit.gameProgress ?? readJson<ProgressSnapshot>(progressKey);
   const commercial = unit.commercialInputs ?? readJson<CommercialProfileSnapshot>(commercialKey);
   const selfManagement = unit.selfManagement ?? readJson<SelfManagementSnapshot>(selfManagementKey);
+  const fillingHistory = unit.fillingHistory ?? readJson<FillingHistorySnapshot>(fillingHistoryKey) ?? undefined;
   const completedMissions = Array.isArray(progress?.completedMissions) ? progress.completedMissions : [];
   const appliedSolutions = Array.isArray(progress?.appliedSolutions) ? progress.appliedSolutions : [];
   const completedSet = new Set(completedMissions);
@@ -3257,8 +3684,11 @@ function readMasterUnitSummary(unit: RegisteredUnit): MasterUnitSummary {
     campaignRecords: Array.isArray(commercial?.campaignRecords) ? commercial.campaignRecords : [],
     weeklyPlan: selfManagement?.weeklyPlan,
     savedPlans: Array.isArray(selfManagement?.savedPlans) ? selfManagement.savedPlans : [],
+    fillingHistory,
     history,
-    lastActivity: history[0]?.date ?? new Date(unit.createdAt).toLocaleDateString("pt-BR"),
+    lastActivity: fillingHistory?.currentWeekly.updatedAt
+      ? new Date(fillingHistory.currentWeekly.updatedAt).toLocaleDateString("pt-BR")
+      : history[0]?.date ?? new Date(unit.createdAt).toLocaleDateString("pt-BR"),
     firebasePaths: [
       getFirebaseUnitPath(unit.cnpj, "gameProgress"),
       getFirebaseUnitPath(unit.cnpj, "commercialInputs"),

@@ -248,6 +248,7 @@ export function useSelfManagement(unitId?: string) {
         : "";
 
   return {
+    isReady,
     ...state,
     dailyChecklist,
     dailyProgress,

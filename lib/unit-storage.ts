@@ -3,7 +3,7 @@
 const FRANCHISE_ID = "dm2-franquia";
 const LOCAL_PREFIX = "dm2-unit";
 
-export type UnitDataArea = "profile" | "gameProgress" | "commercialInputs" | "selfManagement" | "campaigns";
+export type UnitDataArea = "profile" | "gameProgress" | "commercialInputs" | "selfManagement" | "fillingHistory" | "campaigns";
 export type UserRole = "franchise_admin" | "unit_user";
 
 export function normalizeUnitId(unitId?: string) {

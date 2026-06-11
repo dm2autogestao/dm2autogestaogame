@@ -195,6 +195,7 @@ export function useGameProgress(unitId?: string) {
   }
 
   return {
+    isReady,
     ...progress,
     completedSet,
     solutionsSet,

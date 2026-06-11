@@ -76,6 +76,7 @@ function serializeUnit(id: string, data: Record<string, unknown>) {
     commercialInputs: data.commercialInputs,
     gameProgress: data.gameProgress,
     selfManagement: data.selfManagement,
+    fillingHistory: data.fillingHistory,
     createdAt: serializeDate(data.createdAt) ?? new Date().toISOString(),
     updatedAt: serializeDate(data.updatedAt)
   };
