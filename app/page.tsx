@@ -196,6 +196,10 @@ type FillingCycleSnapshot = {
   startsAt: string;
   endsAt: string;
   percent: number;
+  performancePercent?: number;
+  elapsedPercent?: number;
+  daysElapsed?: number;
+  daysRemaining?: number;
   level: string;
   updatedAt: string;
   areas: FillingAreaStatus[];
@@ -238,7 +242,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("journey");
   const [openProblemId, setOpenProblemId] = useState(problems[0].id);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
-  const [, setFillingHistory] = useState<FillingHistorySnapshot | undefined>(undefined);
+  const [fillingHistory, setFillingHistory] = useState<FillingHistorySnapshot | undefined>(undefined);
   const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
   const game = useGameProgress(activeUnitId);
   const commercial = useCommercialInputs(activeUnitId, authSession?.unitName);
@@ -401,6 +405,11 @@ export default function Home() {
 
         <div className="min-w-0 flex-1 pb-10">
           <Header xp={game.totalXp} level={game.currentLevel} unitName={unitName} />
+          <FranchiseeResetCounters
+            xp={game.totalXp}
+            levelName={game.currentLevel.name}
+            fillingHistory={fillingHistory}
+          />
           <div className="mt-5">
           {activeTab === "journey" ? (
             <Screen key="journey">
@@ -1280,6 +1289,17 @@ function getCycleStart(days: number) {
   return new Date(base.getTime() + cycleIndex * days * 86400000);
 }
 
+function getCycleTiming(startsAt: Date, days: number) {
+  const endsAt = new Date(startsAt.getTime() + days * 86400000 - 1);
+  const now = new Date();
+  const elapsedMs = Math.min(Math.max(now.getTime() - startsAt.getTime(), 0), days * 86400000);
+  const daysElapsed = Math.min(days, Math.max(1, Math.ceil(elapsedMs / 86400000)));
+  const daysRemaining = Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / 86400000));
+  const elapsedPercent = Math.min(100, Math.round((daysElapsed / days) * 100));
+
+  return { endsAt, daysElapsed, daysRemaining, elapsedPercent };
+}
+
 function formatShortDate(date: Date) {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
@@ -1294,8 +1314,11 @@ function getFillingLevel(percent: number) {
 
 function getCycleSnapshot(idPrefix: "weekly" | "monthly", days: number, areas: FillingAreaStatus[]) {
   const startsAt = getCycleStart(days);
-  const endsAt = new Date(startsAt.getTime() + days * 86400000 - 1);
-  const percent = Math.round(areas.reduce((sum, area) => sum + area.percent, 0) / areas.length);
+  const { endsAt, daysElapsed, daysRemaining, elapsedPercent } = getCycleTiming(startsAt, days);
+  const performancePercent = Math.round(areas.reduce((sum, area) => sum + area.percent, 0) / areas.length);
+  const percent = idPrefix === "monthly"
+    ? Math.round(performancePercent * (elapsedPercent / 100))
+    : performancePercent;
 
   return {
     id: `${idPrefix}-${startsAt.toISOString().slice(0, 10)}`,
@@ -1303,6 +1326,10 @@ function getCycleSnapshot(idPrefix: "weekly" | "monthly", days: number, areas: F
     startsAt: startsAt.toISOString(),
     endsAt: endsAt.toISOString(),
     percent,
+    performancePercent,
+    elapsedPercent,
+    daysElapsed,
+    daysRemaining,
     level: getFillingLevel(percent),
     updatedAt: new Date().toISOString(),
     areas
@@ -2309,6 +2336,43 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
   );
 }
 
+function FranchiseeResetCounters({
+  xp,
+  levelName,
+  fillingHistory
+}: {
+  xp: number;
+  levelName: string;
+  fillingHistory?: FillingHistorySnapshot;
+}) {
+  const monthlyFallback = getCycleTiming(getCycleStart(30), 30);
+  const weeklyFallback = getCycleTiming(getCycleStart(7), 7);
+  const monthly = fillingHistory?.currentMonthly;
+  const weekly = fillingHistory?.currentWeekly;
+  const monthlyDays = monthly?.daysRemaining ?? monthlyFallback.daysRemaining;
+  const weeklyDays = weekly?.daysRemaining ?? weeklyFallback.daysRemaining;
+
+  return (
+    <section className="mt-4 grid gap-3 md:grid-cols-3">
+      <article className="min-h-[104px] rounded-[24px] border border-amber-100 bg-amber-50 p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-amber-700">XP mensal</p>
+        <p className="mt-1 text-xl font-black text-ink">{xp} XP</p>
+        <p className="mt-1 text-xs font-bold text-amber-800">{levelName} reinicia em {monthlyDays} dia(s)</p>
+      </article>
+      <article className="min-h-[104px] rounded-[24px] border border-emerald-100 bg-emerald-50 p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Preenchimento semanal</p>
+        <p className="mt-1 text-xl font-black text-ink">{weekly?.percent ?? 0}%</p>
+        <p className="mt-1 text-xs font-bold text-emerald-800">Zera em {weeklyDays} dia(s)</p>
+      </article>
+      <article className="min-h-[104px] rounded-[24px] border border-blue-100 bg-blue-50 p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-blue-700">Preenchimento mensal</p>
+        <p className="mt-1 text-xl font-black text-ink">{monthly?.percent ?? 0}%</p>
+        <p className="mt-1 text-xs font-bold text-blue-800">Ciclo de 30 dias: {monthly?.elapsedPercent ?? monthlyFallback.elapsedPercent}% do período</p>
+      </article>
+    </section>
+  );
+}
+
 function getMasterTeamRoleLabel(role: MasterTeamRole) {
   if (role === "admin") return "Administrador";
   if (role === "field_manager") return "Gestor de campo";
@@ -2957,7 +3021,7 @@ function MasterFillingHistorySection({
                   <div className="rounded-2xl bg-white p-3">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-400">Mês</p>
                     <p className="mt-1 text-lg font-black text-ink">{monthly?.percent ?? 0}%</p>
-                    <p className="text-xs font-bold text-slate-500">{monthly?.level ?? "Sem preenchimento"}</p>
+                    <p className="text-xs font-bold text-slate-500">Desempenho: {monthly?.performancePercent ?? monthly?.percent ?? 0}%</p>
                   </div>
                 </div>
 
@@ -2990,10 +3054,49 @@ function MasterFillingHistorySection({
   );
 }
 
+function getCycleMonthKey(cycle: FillingCycleSnapshot) {
+  return cycle.startsAt.slice(0, 7);
+}
+
+function formatCycleMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+function uniqueCyclesById(cycles: FillingCycleSnapshot[]) {
+  const seen = new Set<string>();
+  return cycles.filter((cycle) => {
+    if (seen.has(cycle.id)) return false;
+    seen.add(cycle.id);
+    return true;
+  });
+}
+
+function getCyclePerformance(cycle?: FillingCycleSnapshot) {
+  return cycle?.performancePercent ?? cycle?.percent ?? 0;
+}
+
 function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary; onClose: () => void }) {
   const history = summary.fillingHistory;
-  const weekly = history?.currentWeekly;
-  const monthly = history?.currentMonthly;
+  const monthlyCycles = uniqueCyclesById([
+    ...(history?.currentMonthly ? [history.currentMonthly] : []),
+    ...(history?.monthlyCycles ?? [])
+  ]);
+  const weeklyCycles = uniqueCyclesById([
+    ...(history?.currentWeekly ? [history.currentWeekly] : []),
+    ...(history?.weeklyCycles ?? [])
+  ]);
+  const monthOptions = Array.from(new Set([
+    ...monthlyCycles.map(getCycleMonthKey),
+    ...weeklyCycles.map(getCycleMonthKey)
+  ])).sort((a, b) => b.localeCompare(a));
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] ?? "");
+  const selectedMonthly = monthlyCycles.find((cycle) => getCycleMonthKey(cycle) === selectedMonth) ?? monthlyCycles[0];
+  const weeksInMonth = weeklyCycles.filter((cycle) => getCycleMonthKey(cycle) === selectedMonth);
+  const selectedWeekly = weeksInMonth[0] ?? history?.currentWeekly;
+  const areaSource = selectedWeekly?.areas?.length ? selectedWeekly : selectedMonthly;
+  const monthlyPerformance = getCyclePerformance(selectedMonthly);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 px-4 py-6 backdrop-blur-sm">
@@ -3009,49 +3112,70 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
           </button>
         </div>
 
+        <div className="mb-4 grid gap-3 md:grid-cols-[1fr_260px] md:items-end">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Filtro</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">Puxe mes a mes e veja as semanas registradas dentro do periodo.</p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Mes</span>
+            <select
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            >
+              {monthOptions.length ? monthOptions.map((monthKey) => (
+                <option key={monthKey} value={monthKey}>{formatCycleMonthLabel(monthKey)}</option>
+              )) : (
+                <option value="">Sem historico</option>
+              )}
+            </select>
+          </label>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <article className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nível semanal</p>
-            <p className="mt-1 text-3xl font-black text-ink">{weekly?.percent ?? 0}%</p>
-            <p className="text-sm font-bold text-slate-600">{weekly?.level ?? "Sem preenchimento"} - {weekly?.label ?? "ciclo atual"}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nivel semanal</p>
+            <p className="mt-1 text-3xl font-black text-ink">{selectedWeekly?.percent ?? 0}%</p>
+            <p className="text-sm font-bold text-slate-600">{selectedWeekly?.level ?? "Sem preenchimento"} - {selectedWeekly?.label ?? "ciclo atual"}</p>
           </article>
           <article className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Nível mensal</p>
-            <p className="mt-1 text-3xl font-black text-ink">{monthly?.percent ?? 0}%</p>
-            <p className="text-sm font-bold text-slate-600">{monthly?.level ?? "Sem preenchimento"} - {monthly?.label ?? "ciclo atual"}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Desempenho no mes</p>
+            <p className="mt-1 text-3xl font-black text-ink">{monthlyPerformance}%</p>
+            <p className="text-sm font-bold text-slate-600">Avanco do ciclo: {selectedMonthly?.percent ?? 0}% - {selectedMonthly?.label ?? "ciclo atual"}</p>
           </article>
         </div>
 
         <section className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Áreas preenchidas</h3>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Areas preenchidas</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {(weekly?.areas ?? []).map((area) => (
+            {(areaSource?.areas ?? []).map((area) => (
               <div key={area.id} className="rounded-2xl bg-white p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-ink">{area.label}</p>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${area.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  <span className={"rounded-full px-2 py-1 text-[10px] font-black uppercase " + (area.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
                     {area.completed ? "ok" : "pendente"}
                   </span>
                 </div>
                 <ProgressBar value={area.percent} color={area.completed ? "#14B8A6" : "#F59E0B"} label={area.detail} compact />
               </div>
             ))}
-            {weekly?.areas?.length ? null : (
-              <p className="text-sm font-bold text-slate-500">Ainda não há histórico salvo para esta unidade.</p>
+            {areaSource?.areas?.length ? null : (
+              <p className="text-sm font-bold text-slate-500">Ainda nao ha historico salvo para esta unidade.</p>
             )}
           </div>
         </section>
 
         <section className="mt-4 grid gap-3 md:grid-cols-2">
-          <CycleHistoryList title="Últimas semanas" cycles={history?.weeklyCycles ?? []} />
-          <CycleHistoryList title="Últimos meses" cycles={history?.monthlyCycles ?? []} />
+          <CycleHistoryList title="Semanas do mes selecionado" cycles={weeksInMonth} />
+          <CycleHistoryList title="Meses disponiveis" cycles={monthlyCycles} showPerformance />
         </section>
       </div>
     </div>
   );
 }
 
-function CycleHistoryList({ title, cycles }: { title: string; cycles: FillingCycleSnapshot[] }) {
+function CycleHistoryList({ title, cycles, showPerformance = false }: { title: string; cycles: FillingCycleSnapshot[]; showPerformance?: boolean }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">{title}</h3>
@@ -3062,7 +3186,7 @@ function CycleHistoryList({ title, cycles }: { title: string; cycles: FillingCyc
               <p className="text-sm font-black text-ink">{cycle.label}</p>
               <p className="text-xs font-bold text-slate-500">{cycle.level}</p>
             </div>
-            <span className="text-sm font-black text-emerald-700">{cycle.percent}%</span>
+            <span className="text-sm font-black text-emerald-700">{showPerformance ? getCyclePerformance(cycle) : cycle.percent}%</span>
           </div>
         )) : (
           <p className="text-sm font-bold text-slate-500">Sem ciclos registrados.</p>
