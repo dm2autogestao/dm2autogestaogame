@@ -3115,10 +3115,10 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
         <div className="mb-4 grid gap-3 md:grid-cols-[1fr_260px] md:items-end">
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">Filtro</p>
-            <p className="mt-1 text-sm font-bold text-slate-600">Puxe mes a mes e veja as semanas registradas dentro do periodo.</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">Puxe mês a mês e veja as semanas registradas dentro do período.</p>
           </div>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Mes</span>
+            <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Mês</span>
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(event.target.value)}
@@ -3127,7 +3127,7 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
               {monthOptions.length ? monthOptions.map((monthKey) => (
                 <option key={monthKey} value={monthKey}>{formatCycleMonthLabel(monthKey)}</option>
               )) : (
-                <option value="">Sem historico</option>
+                <option value="">Sem histórico</option>
               )}
             </select>
           </label>
@@ -3135,19 +3135,19 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
 
         <div className="grid gap-3 md:grid-cols-2">
           <article className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nivel semanal</p>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nível semanal</p>
             <p className="mt-1 text-3xl font-black text-ink">{selectedWeekly?.percent ?? 0}%</p>
             <p className="text-sm font-bold text-slate-600">{selectedWeekly?.level ?? "Sem preenchimento"} - {selectedWeekly?.label ?? "ciclo atual"}</p>
           </article>
           <article className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Desempenho no mes</p>
+            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Desempenho no mês</p>
             <p className="mt-1 text-3xl font-black text-ink">{monthlyPerformance}%</p>
-            <p className="text-sm font-bold text-slate-600">Avanco do ciclo: {selectedMonthly?.percent ?? 0}% - {selectedMonthly?.label ?? "ciclo atual"}</p>
+            <p className="text-sm font-bold text-slate-600">Avanço do ciclo: {selectedMonthly?.percent ?? 0}% - {selectedMonthly?.label ?? "ciclo atual"}</p>
           </article>
         </div>
 
         <section className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Areas preenchidas</h3>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Áreas preenchidas</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {(areaSource?.areas ?? []).map((area) => (
               <div key={area.id} className="rounded-2xl bg-white p-3">
@@ -3161,14 +3161,14 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
               </div>
             ))}
             {areaSource?.areas?.length ? null : (
-              <p className="text-sm font-bold text-slate-500">Ainda nao ha historico salvo para esta unidade.</p>
+              <p className="text-sm font-bold text-slate-500">Ainda não há histórico salvo para esta unidade.</p>
             )}
           </div>
         </section>
 
         <section className="mt-4 grid gap-3 md:grid-cols-2">
-          <CycleHistoryList title="Semanas do mes selecionado" cycles={weeksInMonth} />
-          <CycleHistoryList title="Meses disponiveis" cycles={monthlyCycles} showPerformance />
+          <CycleHistoryList title="Semanas do mês selecionado" cycles={weeksInMonth} />
+          <CycleHistoryList title="Meses disponíveis" cycles={monthlyCycles} showPerformance />
         </section>
       </div>
     </div>
@@ -4373,7 +4373,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-slate-400">{channel.subtitle}</p>
             <h2 className="text-xl font-black text-ink">Exemplo de funil do método</h2>
-            <p className="text-xs font-bold text-slate-500">Referência visual, não ? dado real da unidade.</p>
+            <p className="text-xs font-bold text-slate-500">Referência visual, não é dado real da unidade.</p>
           </div>
         </div>
         <FunnelPyramid steps={channel.funnel} color={channel.accent} />
@@ -4427,7 +4427,7 @@ function ChannelPlaybook({ channel }: { channel: CaptureChannel }) {
 
         {channel.notes ? (
           <div className="rounded-[28px] border border-sky-200 bg-sky-50 p-5 shadow-sm">
-            <h2 className="mb-3 text-xl font-black text-sky-900">Notas pr?ticas</h2>
+            <h2 className="mb-3 text-xl font-black text-sky-900">Notas práticas</h2>
             <div className="space-y-2">
               {channel.notes.map((note) => (
                 <p key={note} className="text-sm font-bold text-sky-800">{note}</p>
