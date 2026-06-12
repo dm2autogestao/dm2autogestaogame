@@ -212,6 +212,8 @@ type FillingHistorySnapshot = {
   monthlyCycles: FillingCycleSnapshot[];
 };
 
+type FillingStatus = "Completo" | "Parcial" | "Não preenchido" | "Atrasado";
+
 const AUTH_SESSION_KEY = "dm2-auth-session-v1";
 const AUTH_REMEMBER_KEY = "dm2-auth-remember-v1";
 const REGISTERED_UNITS_KEY = "dm2-registered-units-v1";
@@ -2351,9 +2353,11 @@ function FranchiseeResetCounters({
   const weekly = fillingHistory?.currentWeekly;
   const monthlyDays = monthly?.daysRemaining ?? monthlyFallback.daysRemaining;
   const weeklyDays = weekly?.daysRemaining ?? weeklyFallback.daysRemaining;
+  const pendingAreas = getMissingFillingAreas(weekly).slice(0, 3);
+  const completedAreas = weekly?.areas.filter((area) => area.completed).length ?? 0;
 
   return (
-    <section className="mt-4 grid gap-3 md:grid-cols-3">
+    <section className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1.25fr]">
       <article className="min-h-[104px] rounded-[24px] border border-amber-100 bg-amber-50 p-4">
         <p className="text-xs font-black uppercase tracking-wide text-amber-700">XP mensal</p>
         <p className="mt-1 text-xl font-black text-ink">{xp} XP</p>
@@ -2368,6 +2372,13 @@ function FranchiseeResetCounters({
         <p className="text-xs font-black uppercase tracking-wide text-blue-700">Preenchimento mensal</p>
         <p className="mt-1 text-xl font-black text-ink">{monthly?.percent ?? 0}%</p>
         <p className="mt-1 text-xs font-bold text-blue-800">Ciclo de 30 dias: {monthly?.elapsedPercent ?? monthlyFallback.elapsedPercent}% do período</p>
+      </article>
+      <article className="min-h-[104px] rounded-[24px] border border-slate-200 bg-white p-4">
+        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Pendências da semana</p>
+        <p className="mt-1 text-xl font-black text-ink">{completedAreas}/{weekly?.areas.length ?? 6} áreas</p>
+        <p className="mt-1 text-xs font-bold text-slate-500">
+          {pendingAreas.length ? pendingAreas.map((area) => area.label).join(", ") : "Tudo em dia nesta semana"}
+        </p>
       </article>
     </section>
   );
@@ -2950,17 +2961,133 @@ function getFillingCycle(summary: MasterUnitSummary, period: "weekly" | "monthly
   return period === "weekly" ? summary.fillingHistory?.currentWeekly : summary.fillingHistory?.currentMonthly;
 }
 
-function getFillingStatus(summary: MasterUnitSummary) {
-  const weekly = getFillingCycle(summary, "weekly");
-  if (!weekly || weekly.percent === 0) return "Não preencheu";
-  if (weekly.percent < 45) return "Incompleto";
-  return "Preencheu";
+function getCurrentCycleId(period: "weekly" | "monthly") {
+  const days = period === "weekly" ? 7 : 30;
+  return `${period}-${getCycleStart(days).toISOString().slice(0, 10)}`;
 }
 
-function getFillingStatusClass(status: string) {
-  if (status === "Preencheu") return "bg-emerald-100 text-emerald-700";
-  if (status === "Incompleto") return "bg-amber-100 text-amber-700";
+function getFillingStatus(summary: MasterUnitSummary): FillingStatus {
+  const weekly = getFillingCycle(summary, "weekly");
+  if (!weekly) return "Não preenchido";
+  if (weekly.id !== getCurrentCycleId("weekly")) return "Atrasado";
+  if (weekly.percent === 0) return "Não preenchido";
+  if (weekly.percent < 75) return "Parcial";
+  return "Completo";
+}
+
+function getFillingStatusClass(status: FillingStatus) {
+  if (status === "Completo") return "bg-emerald-100 text-emerald-700";
+  if (status === "Parcial") return "bg-amber-100 text-amber-700";
+  if (status === "Atrasado") return "bg-orange-100 text-orange-700";
   return "bg-red-100 text-red-700";
+}
+
+function getFillingStatusHelper(status: FillingStatus) {
+  if (status === "Completo") return "Semana em dia";
+  if (status === "Parcial") return "Faltam campos";
+  if (status === "Atrasado") return "Sem ciclo atual";
+  return "Sem registro";
+}
+
+function getAllWeeklyCycles(history?: FillingHistorySnapshot) {
+  return uniqueCyclesById([
+    ...(history?.currentWeekly ? [history.currentWeekly] : []),
+    ...(history?.weeklyCycles ?? [])
+  ]).sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+}
+
+function getAllMonthlyCycles(history?: FillingHistorySnapshot) {
+  return uniqueCyclesById([
+    ...(history?.currentMonthly ? [history.currentMonthly] : []),
+    ...(history?.monthlyCycles ?? [])
+  ]).sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+}
+
+function getFillingConsistency(summary: MasterUnitSummary) {
+  const weeks = getAllWeeklyCycles(summary.fillingHistory).slice(0, 4);
+  const filledWeeks = weeks.filter((cycle) => cycle.percent >= 70).length;
+  let streak = 0;
+
+  for (const cycle of weeks) {
+    if (cycle.percent < 70) break;
+    streak += 1;
+  }
+
+  const score = Math.min(100, Math.round((filledWeeks / 4) * 80 + Math.min(streak, 4) * 5));
+  return { score, streak, filledWeeks, totalWeeks: Math.max(weeks.length, 4) };
+}
+
+function getPreviousMonthlyCycle(summary: MasterUnitSummary, selectedMonth?: string) {
+  const cycles = getAllMonthlyCycles(summary.fillingHistory);
+  const referenceIndex = selectedMonth
+    ? cycles.findIndex((cycle) => getCycleMonthKey(cycle) === selectedMonth)
+    : 0;
+  const index = referenceIndex >= 0 ? referenceIndex : 0;
+  return cycles[index + 1];
+}
+
+function getMonthlyComparison(summary: MasterUnitSummary, selectedMonth?: string) {
+  const cycles = getAllMonthlyCycles(summary.fillingHistory);
+  const current = selectedMonth
+    ? cycles.find((cycle) => getCycleMonthKey(cycle) === selectedMonth) ?? cycles[0]
+    : cycles[0];
+  const previous = getPreviousMonthlyCycle(summary, selectedMonth);
+  const currentValue = getCyclePerformance(current);
+  const previousValue = getCyclePerformance(previous);
+  const diff = currentValue - previousValue;
+
+  return {
+    current,
+    previous,
+    currentValue,
+    previousValue,
+    diff,
+    label: previous ? `${diff >= 0 ? "+" : ""}${diff}% vs. mês anterior` : "Sem mês anterior"
+  };
+}
+
+function getMissingFillingAreas(cycle?: FillingCycleSnapshot) {
+  return (cycle?.areas ?? []).filter((area) => !area.completed).sort((a, b) => a.percent - b.percent);
+}
+
+function getNetworkFillingAlerts(summaries: MasterUnitSummary[]) {
+  return summaries.flatMap((summary) => {
+    const status = getFillingStatus(summary);
+    const weekly = getFillingCycle(summary, "weekly");
+    const monthlyComparison = getMonthlyComparison(summary);
+    const missing = getMissingFillingAreas(weekly).slice(0, 2);
+    const alerts: Array<{ id: string; unitName: string; title: string; detail: string; tone: "red" | "amber" | "blue" }> = [];
+
+    if (status === "Não preenchido" || status === "Atrasado") {
+      alerts.push({
+        id: `${summary.unit.cnpj}-empty`,
+        unitName: summary.unit.unitName,
+        title: "Preenchimento pendente",
+        detail: status === "Atrasado" ? "A unidade ainda não registrou o ciclo semanal atual." : "A unidade não possui preenchimento semanal salvo.",
+        tone: "red"
+      });
+    } else if (status === "Parcial") {
+      alerts.push({
+        id: `${summary.unit.cnpj}-partial`,
+        unitName: summary.unit.unitName,
+        title: "Preenchimento parcial",
+        detail: missing.length ? `Falta revisar: ${missing.map((area) => area.label).join(", ")}.` : "A semana foi iniciada, mas ainda não está completa.",
+        tone: "amber"
+      });
+    }
+
+    if (monthlyComparison.previous && monthlyComparison.diff <= -15) {
+      alerts.push({
+        id: `${summary.unit.cnpj}-drop`,
+        unitName: summary.unit.unitName,
+        title: "Queda mensal",
+        detail: `Desempenho caiu ${Math.abs(monthlyComparison.diff)} pontos em relação ao mês anterior.`,
+        tone: "blue"
+      });
+    }
+
+    return alerts;
+  });
 }
 
 function MasterFillingHistorySection({
@@ -2971,27 +3098,105 @@ function MasterFillingHistorySection({
   onOpenDetails: (cnpj: string) => void;
 }) {
   const [search, setSearch] = useState("");
-  const filteredSummaries = summaries.filter((summary) => unitMatchesSearch(summary, search));
-  const filledCount = summaries.filter((summary) => getFillingStatus(summary) === "Preencheu").length;
-  const incompleteCount = summaries.filter((summary) => getFillingStatus(summary) === "Incompleto").length;
-  const emptyCount = summaries.filter((summary) => getFillingStatus(summary) === "Não preencheu").length;
+  const [statusFilter, setStatusFilter] = useState<FillingStatus | "Todos">("Todos");
+  const [periodView, setPeriodView] = useState<"weekly" | "monthly">("weekly");
+  const filteredSummaries = summaries.filter((summary) => {
+    const matchesStatus = statusFilter === "Todos" || getFillingStatus(summary) === statusFilter;
+    return matchesStatus && unitMatchesSearch(summary, search);
+  });
+  const completeCount = summaries.filter((summary) => getFillingStatus(summary) === "Completo").length;
+  const partialCount = summaries.filter((summary) => getFillingStatus(summary) === "Parcial").length;
+  const delayedCount = summaries.filter((summary) => getFillingStatus(summary) === "Atrasado").length;
+  const emptyCount = summaries.filter((summary) => getFillingStatus(summary) === "Não preenchido").length;
+  const networkAlerts = getNetworkFillingAlerts(summaries).slice(0, 6);
+  const averageConsistency = summaries.length
+    ? Math.round(summaries.reduce((sum, summary) => sum + getFillingConsistency(summary).score, 0) / summaries.length)
+    : 0;
+  const bestEvolution = [...summaries]
+    .map((summary) => ({ summary, comparison: getMonthlyComparison(summary) }))
+    .filter((item) => item.comparison.previous)
+    .sort((a, b) => b.comparison.diff - a.comparison.diff)[0];
 
   return (
     <section className="mt-5">
       <div className="rounded-[32px] border border-white/80 bg-white/90 p-5 shadow-soft backdrop-blur">
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_320px] lg:items-end">
+        <div className="mb-4 grid gap-3 xl:grid-cols-[1fr_320px_220px] xl:items-end">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Histórico de preenchimento</p>
             <h2 className="text-xl font-black text-ink">Acompanhamento semanal e mensal</h2>
-            <p className="mt-1 text-sm font-bold text-slate-500">Veja quem atualizou a ferramenta, quem está incompleto e quem não preencheu.</p>
+            <p className="mt-1 text-sm font-bold text-slate-500">Veja quem atualizou, quem atrasou, quem caiu no mês e quais áreas ainda faltam.</p>
           </div>
           <SearchBox value={search} onChange={setSearch} placeholder="Buscar unidade, cidade, responsável..." />
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as FillingStatus | "Todos")}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-ink outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="Todos">Todos</option>
+              <option value="Completo">Completo</option>
+              <option value="Parcial">Parcial</option>
+              <option value="Atrasado">Atrasado</option>
+              <option value="Não preenchido">Não preenchido</option>
+            </select>
+          </label>
         </div>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-3">
-          <MiniMetric label="Preencheram" value={`${filledCount}`} />
-          <MiniMetric label="Incompletos" value={`${incompleteCount}`} />
-          <MiniMetric label="Sem preencher" value={`${emptyCount}`} />
+        <div className="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <MiniMetric label="Completos" value={`${completeCount}`} />
+          <MiniMetric label="Parciais" value={`${partialCount}`} />
+          <MiniMetric label="Atrasados" value={`${delayedCount + emptyCount}`} />
+          <MiniMetric label="Disciplina média" value={`${averageConsistency}%`} />
+          <MiniMetric label="Melhor evolução" value={bestEvolution ? `${bestEvolution.comparison.diff >= 0 ? "+" : ""}${bestEvolution.comparison.diff}%` : "0%"} />
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(["weekly", "monthly"] as const).map((period) => (
+            <button
+              key={period}
+              type="button"
+              onClick={() => setPeriodView(period)}
+              className={`rounded-2xl px-4 py-2 text-xs font-black uppercase transition ${
+                periodView === period ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {period === "weekly" ? "Ver semana" : "Ver mês"}
+            </button>
+          ))}
+        </div>
+
+        {networkAlerts.length ? (
+          <div className="mb-4 rounded-[28px] border border-amber-100 bg-amber-50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <BellRing className="h-5 w-5 text-amber-600" />
+              <h3 className="text-sm font-black uppercase tracking-wide text-amber-800">Alertas da rede</h3>
+            </div>
+            <div className="grid gap-2 lg:grid-cols-2">
+              {networkAlerts.map((alert) => (
+                <div key={alert.id} className="rounded-2xl bg-white p-3">
+                  <p className="text-sm font-black text-ink">{alert.unitName} - {alert.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{alert.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {bestEvolution ? (
+          <div className="mb-4 rounded-[28px] border border-blue-100 bg-blue-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Destaque do mês</p>
+            <p className="mt-1 text-sm font-bold text-blue-900">
+              {bestEvolution.summary.unit.unitName} teve {bestEvolution.comparison.label}. Use esse caso como referência para acompanhar a rede.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mb-4 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">Como ler</p>
+          <p className="mt-1 text-sm font-bold text-slate-600">
+            Completo significa semana acima de 75%. Parcial mostra preenchimento iniciado. Atrasado indica que a unidade ainda não salvou o ciclo semanal atual.
+          </p>
         </div>
 
         <div className="grid gap-3 xl:grid-cols-2">
@@ -2999,6 +3204,10 @@ function MasterFillingHistorySection({
             const weekly = getFillingCycle(summary, "weekly");
             const monthly = getFillingCycle(summary, "monthly");
             const status = getFillingStatus(summary);
+            const activeCycle = periodView === "weekly" ? weekly : monthly;
+            const consistency = getFillingConsistency(summary);
+            const comparison = getMonthlyComparison(summary);
+            const missingAreas = getMissingFillingAreas(activeCycle).slice(0, 2);
 
             return (
               <article key={summary.unit.cnpj} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -3012,7 +3221,7 @@ function MasterFillingHistorySection({
                   </span>
                 </div>
 
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl bg-white p-3">
                     <p className="text-xs font-black uppercase tracking-wide text-slate-400">Semana</p>
                     <p className="mt-1 text-lg font-black text-ink">{weekly?.percent ?? 0}%</p>
@@ -3023,10 +3232,30 @@ function MasterFillingHistorySection({
                     <p className="mt-1 text-lg font-black text-ink">{monthly?.percent ?? 0}%</p>
                     <p className="text-xs font-bold text-slate-500">Desempenho: {monthly?.performancePercent ?? monthly?.percent ?? 0}%</p>
                   </div>
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-400">Disciplina</p>
+                    <p className="mt-1 text-lg font-black text-ink">{consistency.score}%</p>
+                    <p className="text-xs font-bold text-slate-500">{consistency.streak} semana(s) em sequência</p>
+                  </div>
                 </div>
 
                 <div className="mt-3">
-                  <ProgressBar value={weekly?.percent ?? 0} color="#14B8A6" label="Avanço semanal" compact />
+                  <ProgressBar
+                    value={activeCycle?.percent ?? 0}
+                    color={periodView === "weekly" ? "#14B8A6" : "#1CB0F6"}
+                    label={periodView === "weekly" ? "Avanço semanal" : comparison.label}
+                    compact
+                  />
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white px-3 py-2">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Status operacional</p>
+                    <p className="text-sm font-black text-ink">{getFillingStatusHelper(status)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-3 py-2">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Faltando agora</p>
+                    <p className="text-sm font-black text-ink">{missingAreas.length ? missingAreas.map((area) => area.label).join(", ") : "Nada pendente"}</p>
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-bold text-slate-500">
@@ -3097,6 +3326,10 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
   const selectedWeekly = weeksInMonth[0] ?? history?.currentWeekly;
   const areaSource = selectedWeekly?.areas?.length ? selectedWeekly : selectedMonthly;
   const monthlyPerformance = getCyclePerformance(selectedMonthly);
+  const consistency = getFillingConsistency(summary);
+  const comparison = getMonthlyComparison(summary, selectedMonth);
+  const missingAreas = getMissingFillingAreas(areaSource);
+  const selectedStatus = getFillingStatus(summary);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/55 px-4 py-6 backdrop-blur-sm">
@@ -3133,6 +3366,29 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
           </label>
         </div>
 
+        <div className="mb-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Status</p>
+            <p className="mt-1 text-lg font-black text-ink">{selectedStatus}</p>
+            <p className="text-xs font-bold text-slate-500">{getFillingStatusHelper(selectedStatus)}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Disciplina</p>
+            <p className="mt-1 text-lg font-black text-ink">{consistency.score}%</p>
+            <p className="text-xs font-bold text-slate-500">{consistency.filledWeeks}/4 semanas em dia</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Sequência</p>
+            <p className="mt-1 text-lg font-black text-ink">{consistency.streak}</p>
+            <p className="text-xs font-bold text-slate-500">semana(s) completas</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Comparativo</p>
+            <p className="mt-1 text-lg font-black text-ink">{comparison.previous ? `${comparison.diff >= 0 ? "+" : ""}${comparison.diff}%` : "-"}</p>
+            <p className="text-xs font-bold text-slate-500">{comparison.label}</p>
+          </div>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <article className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
             <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Nível semanal</p>
@@ -3148,6 +3404,12 @@ function FillingHistoryModal({ summary, onClose }: { summary: MasterUnitSummary;
 
         <section className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Áreas preenchidas</h3>
+          {missingAreas.length ? (
+            <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
+              <p className="text-xs font-black uppercase tracking-wide text-amber-700">Atenção no período</p>
+              <p className="mt-1 text-sm font-bold text-amber-900">{missingAreas.map((area) => area.label).join(", ")}</p>
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {(areaSource?.areas ?? []).map((area) => (
               <div key={area.id} className="rounded-2xl bg-white p-3">
