@@ -1059,7 +1059,7 @@ async function loadRegisteredUnits(allowLocalFallback = true) {
     return units;
   } catch {
     if (!allowLocalFallback) {
-      throw new Error("Sessao master expirada ou sem permissao para carregar unidades.");
+      throw new Error("Sessão master expirada ou sem permissão para carregar unidades.");
     }
 
     return readRegisteredUnits();

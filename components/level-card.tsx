@@ -33,7 +33,7 @@ export function LevelCard({ level, xp, progress, nextLevelName }: LevelCardProps
       <div className="relative mt-5 rounded-[24px] border border-slate-100 bg-slate-50/80 p-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Nivel atual</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Nível atual</p>
             <p className="text-base font-black text-ink">{level.name}</p>
           </div>
           <div className="rounded-2xl bg-white px-3 py-2 text-right shadow-sm">
@@ -43,7 +43,7 @@ export function LevelCard({ level, xp, progress, nextLevelName }: LevelCardProps
         </div>
         <ProgressBar value={progress} color={level.color} />
         <p className="mt-2 text-xs font-bold text-slate-500">
-          {nextLevelName ? `Proximo nivel: ${nextLevelName}` : "Nivel maximo alcancado. Hora de escalar."}
+          {nextLevelName ? `Próximo nível: ${nextLevelName}` : "Nível máximo alcançado. Hora de escalar."}
         </p>
       </div>
     </section>
