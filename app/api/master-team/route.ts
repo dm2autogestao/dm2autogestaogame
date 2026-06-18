@@ -7,7 +7,7 @@ import { COOKIE_NAME, readSessionToken } from "@/lib/session-security";
 
 export const runtime = "nodejs";
 
-const MASTER_TEAM_DOMAIN = "@doutodm2franquias.com.br";
+const MASTER_TEAM_DOMAIN = "@doutordm2franquias.com.br";
 const TEMPORARY_PASSWORD = "DM2@123456";
 
 type MasterTeamRole = "admin" | "field_manager" | "operations";

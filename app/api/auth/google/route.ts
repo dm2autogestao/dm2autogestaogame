@@ -5,7 +5,7 @@ import { getDb } from "@/lib/firestore-admin";
 import { COOKIE_NAME, createSessionToken, getSessionCookieOptions } from "@/lib/session-security";
 
 export const runtime = "nodejs";
-const MASTER_TEAM_DOMAIN = "@doutodm2franquias.com.br";
+const MASTER_TEAM_DOMAIN = "@doutordm2franquias.com.br";
 
 type GoogleLoginPayload = {
   idToken?: string;

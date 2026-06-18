@@ -5,7 +5,7 @@ import { COOKIE_NAME, createSessionToken, getSessionCookieOptions } from "@/lib/
 
 export const runtime = "nodejs";
 
-const MASTER_TEAM_DOMAIN = "@doutodm2franquias.com.br";
+const MASTER_TEAM_DOMAIN = "@doutordm2franquias.com.br";
 
 type MasterPayload = {
   email?: string;

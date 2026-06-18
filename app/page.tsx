@@ -1814,7 +1814,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                 {role === "franchisee" ? (
                   <AuthInput icon={Building2} label="CNPJ ou e-mail" value={login.cnpj} onChange={(value) => setLogin((current) => ({ ...current, cnpj: value }))} placeholder="00.000.000/0000-00 ou unidade@email.com" />
                 ) : (
-                  <AuthInput icon={Mail} label="E-mail master" value={login.email} onChange={(value) => setLogin((current) => ({ ...current, email: value }))} placeholder="master@franquia.com" />
+                  <AuthInput icon={Mail} label="E-mail master" value={login.email} onChange={(value) => setLogin((current) => ({ ...current, email: value }))} placeholder="admin@doutordm2franquias.com.br" />
                 )}
                 <AuthInput icon={KeyRound} label="Senha" type="password" value={login.password} onChange={(value) => setLogin((current) => ({ ...current, password: value }))} placeholder="Digite sua senha" />
                 <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
@@ -1886,7 +1886,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
             {view === "recover" ? (
               <form onSubmit={submitRecover} className="grid gap-3">
-                <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "master@franquia.com"} />
+                <AuthInput icon={role === "franchisee" ? Building2 : Mail} label={role === "franchisee" ? "CNPJ ou e-mail" : "E-mail master"} value={recover.identifier} onChange={(value) => setRecover((current) => ({ ...current, identifier: value }))} placeholder={role === "franchisee" ? "CNPJ ou e-mail cadastrado" : "admin@doutordm2franquias.com.br"} />
                 <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
                   {role === "franchisee"
                     ? "Enviaremos um link de redefinição para o e-mail cadastrado da unidade."
@@ -2435,8 +2435,8 @@ function MasterTeamSection({
       return;
     }
 
-    if (!form.email.trim().toLowerCase().endsWith("@doutodm2franquias.com.br")) {
-      setMessage("Use somente e-mails @doutodm2franquias.com.br.");
+    if (!form.email.trim().toLowerCase().endsWith("@doutordm2franquias.com.br")) {
+      setMessage("Use somente e-mails @doutordm2franquias.com.br.");
       return;
     }
 
@@ -2467,7 +2467,7 @@ function MasterTeamSection({
         <div className="mb-4">
           <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Equipe master</p>
           <h2 className="text-xl font-black text-ink">Criar acesso interno</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">Somente e-mails @doutodm2franquias.com.br podem entrar na área master.</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">Somente e-mails @doutordm2franquias.com.br podem entrar na área master.</p>
         </div>
 
         {message ? (
@@ -2478,7 +2478,7 @@ function MasterTeamSection({
 
         <div className="grid gap-3">
           <AuthInput icon={UserRound} label="Nome" value={form.name} onChange={(value) => update("name", value)} placeholder="Nome da pessoa" />
-          <AuthInput icon={Mail} label="E-mail corporativo" value={form.email} onChange={(value) => update("email", value)} placeholder="nome@doutodm2franquias.com.br" />
+          <AuthInput icon={Mail} label="E-mail corporativo" value={form.email} onChange={(value) => update("email", value)} placeholder="nome@doutordm2franquias.com.br" />
           <label className="block">
             <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">Nível de acesso</span>
             <select
