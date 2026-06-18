@@ -1749,18 +1749,24 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   }
 
   return (
-    <main className="grid min-h-screen bg-white text-ink lg:grid-cols-[1.05fr_0.95fr]">
+    <main className="grid min-h-screen bg-white text-ink lg:grid-cols-[1.2fr_0.8fr]">
       <section
-        className="relative hidden min-h-screen overflow-hidden bg-emerald-950 lg:block"
+        className="relative min-h-[220px] overflow-hidden bg-emerald-950 lg:min-h-screen"
         style={{
-          backgroundImage: "linear-gradient(90deg, rgba(3, 48, 39, 0.12), rgba(3, 48, 39, 0.04)), url('/login-clinic.jpeg')",
+          backgroundImage: "linear-gradient(rgba(3, 48, 39, 0.2), rgba(3, 48, 39, 0.2)), url('/login-facade.png')",
           backgroundPosition: "center",
           backgroundSize: "cover"
         }}
       >
+        <div className="absolute inset-0 bg-emerald-950/25 backdrop-blur-xl" />
+        <img
+          src="/login-facade.png"
+          alt="Fachada Doutor DM2"
+          className="absolute inset-0 h-full w-full object-contain"
+        />
       </section>
 
-      <section className="flex min-h-screen items-center justify-center bg-[#F5F8F6] px-4 py-8 sm:px-8">
+      <section className="flex items-center justify-center bg-[#F5F8F6] px-4 py-8 sm:px-8 lg:min-h-screen">
         <div className="w-full max-w-lg rounded-[34px] border border-white bg-white/90 p-5 shadow-soft backdrop-blur">
           <div className="mb-5 flex items-center justify-center">
             <img src="/login-logo.webp" alt="Logo" className="h-12 w-auto object-contain" />
