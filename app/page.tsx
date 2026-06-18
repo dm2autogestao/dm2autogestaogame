@@ -1498,6 +1498,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   const [role, setRole] = useState<AuthRole>("franchisee");
   const [view, setView] = useState<AuthView>("login");
   const [message, setMessage] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleProfile, setGoogleProfile] = useState<GoogleProfileState | null>(null);
   const [rememberLogin, setRememberLogin] = useState(false);
@@ -1508,40 +1509,41 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   async function submitLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setLoginLoading(true);
 
-    if (role === "master") {
-      try {
-        onAuthenticated(await loginMasterOnServer(login.email, login.password, rememberLogin), rememberLogin);
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Acesso master não encontrado.");
-      }
-      return;
-    }
-
-    let unit: RegisteredUnit;
     try {
-      unit = await loginUnitOnServer(login.cnpj.trim(), login.password, rememberLogin);
+      if (role === "master") {
+        onAuthenticated(await loginMasterOnServer(login.email, login.password, rememberLogin), rememberLogin);
+        return;
+      }
+
+      const unit = await loginUnitOnServer(login.cnpj.trim(), login.password, rememberLogin);
+
+      if (unit.status === "blocked") {
+        setMessage("Esta unidade está bloqueada. Fale com a franqueadora para reativar o acesso.");
+        return;
+      }
+
+      onAuthenticated(
+        {
+          role: "franchisee",
+          cnpj: unit.cnpj,
+          unitName: unit.unitName,
+          responsibleName: unit.responsibleName,
+          city: unit.city,
+          state: unit.state
+        },
+        rememberLogin
+      );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
-      return;
+      setMessage(error instanceof Error
+        ? error.message
+        : role === "master"
+          ? "Acesso master não encontrado."
+          : "CNPJ, e-mail ou senha incorretos. Cadastre a unidade ou recupere a senha.");
+    } finally {
+      setLoginLoading(false);
     }
-
-    if (unit.status === "blocked") {
-      setMessage("Esta unidade está bloqueada. Fale com a franqueadora para reativar o acesso.");
-      return;
-    }
-
-    onAuthenticated(
-      {
-        role: "franchisee",
-        cnpj: unit.cnpj,
-        unitName: unit.unitName,
-        responsibleName: unit.responsibleName,
-        city: unit.city,
-        state: unit.state
-      },
-      rememberLogin
-    );
   }
 
   async function submitGoogleLogin() {
@@ -1749,16 +1751,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
   }
 
   return (
-    <main className="grid min-h-screen bg-white text-ink lg:grid-cols-[1.2fr_0.8fr]">
-      <section
-        className="relative min-h-[220px] overflow-hidden bg-emerald-950 lg:min-h-screen"
-        style={{
-          backgroundImage: "linear-gradient(rgba(3, 48, 39, 0.2), rgba(3, 48, 39, 0.2)), url('/login-facade.png')",
-          backgroundPosition: "center",
-          backgroundSize: "cover"
-        }}
-      >
-        <div className="absolute inset-0 bg-emerald-950/25 backdrop-blur-xl" />
+    <main className="grid min-h-screen bg-white text-ink lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
+      <section className="relative min-h-[220px] overflow-hidden bg-[#082D29] lg:min-h-screen">
         <img
           src="/login-facade.png"
           alt="Fachada Doutor DM2"
@@ -1766,18 +1760,18 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
         />
       </section>
 
-      <section className="flex items-center justify-center bg-[#F5F8F6] px-4 py-8 sm:px-8 lg:min-h-screen">
-        <div className="w-full max-w-lg rounded-[34px] border border-white bg-white/90 p-5 shadow-soft backdrop-blur">
-          <div className="mb-5 flex items-center justify-center">
-            <img src="/login-logo.webp" alt="Logo" className="h-12 w-auto object-contain" />
+      <section className="flex items-center justify-center border-l border-slate-100 bg-white px-5 py-10 sm:px-10 lg:min-h-screen">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex items-center">
+            <img src="/login-logo.webp" alt="Logo" className="h-11 w-auto object-contain" />
           </div>
 
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-[22px] bg-slate-100 p-2">
+          <div className="mb-7 grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
             <button
               type="button"
               onClick={() => switchRole("franchisee")}
-              className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-black transition ${
-                role === "franchisee" ? "bg-emerald-600 text-white" : "text-slate-500"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-black transition ${
+                role === "franchisee" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:bg-white"
               }`}
             >
               <Building2 className="h-4 w-4" />
@@ -1786,8 +1780,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
             <button
               type="button"
               onClick={() => switchRole("master")}
-              className={`flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-black transition ${
-                role === "master" ? "bg-ink text-white" : "text-slate-500"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-black transition ${
+                role === "master" ? "bg-ink text-white shadow-sm" : "text-slate-500 hover:bg-white"
               }`}
             >
               <Trophy className="h-4 w-4" />
@@ -1810,7 +1804,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
           </div>
 
             {message ? (
-              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
                 {message}
               </div>
             ) : null}
@@ -1823,7 +1817,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                   <AuthInput icon={Mail} label="E-mail master" value={login.email} onChange={(value) => setLogin((current) => ({ ...current, email: value }))} placeholder="master@franquia.com" />
                 )}
                 <AuthInput icon={KeyRound} label="Senha" type="password" value={login.password} onChange={(value) => setLogin((current) => ({ ...current, password: value }))} placeholder="Digite sua senha" />
-                <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
                   <input
                     type="checkbox"
                     checked={rememberLogin}
@@ -1832,15 +1826,15 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
                   />
                   Permanecer conectado
                 </label>
-                <button type="submit" className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-emerald-700 bg-emerald-600 text-sm font-black uppercase text-white transition active:translate-y-1 active:border-b-2">
+                <button type="submit" disabled={loginLoading} className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-black uppercase text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
                   <LogIn className="h-4 w-4" />
-                  Entrar
+                  {loginLoading ? "Entrando..." : "Entrar"}
                 </button>
                 <button
                   type="button"
                   onClick={submitGoogleLogin}
                   disabled={googleLoading}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-b-4 border-slate-200 bg-white text-sm font-black uppercase text-slate-700 transition hover:border-slate-300 active:translate-y-1 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-sm font-black uppercase text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-base font-black text-[#4285F4]">G</span>
                   {googleLoading ? "Conectando..." : "Entrar com Google"}
@@ -1945,7 +1939,7 @@ function AuthInput({
   return (
     <label className="block">
       <span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</span>
-      <div className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100">
+      <div className="flex h-12 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 transition focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100">
         <Icon className="h-4 w-4 shrink-0 text-emerald-600" />
         <input
           type={type}
