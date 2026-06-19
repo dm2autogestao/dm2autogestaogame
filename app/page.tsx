@@ -1752,11 +1752,11 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
   return (
     <main className="grid min-h-screen items-start bg-white text-ink lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
-      <section className="relative h-[220px] overflow-hidden bg-[#082D29] lg:sticky lg:top-0 lg:h-screen">
+      <section className="relative h-[220px] overflow-hidden bg-slate-950 lg:sticky lg:top-0 lg:h-screen">
         <img
           src="/login-facade.png"
           alt="Fachada Doutor DM2"
-          className="absolute inset-0 h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-cover object-center"
         />
       </section>
 
