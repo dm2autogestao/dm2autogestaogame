@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { journeyBlocks, levels, missions, problems } from "@/data/game-data";
 import type { BlockId, PillarStatus } from "@/data/game-data";
+import { clearUnitStateCache, getUnitState } from "@/lib/unit-state-client";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 type ProgressState = {
@@ -74,10 +75,7 @@ export function useGameProgress(unitId?: string) {
       }
 
       try {
-        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`, {
-          credentials: "include"
-        });
-        const result = await response.json();
+        const result = await getUnitState(unitId);
         const remoteProgress = result?.data?.gameProgress as Partial<ProgressState> | undefined;
 
         if (isMounted) {
@@ -130,9 +128,11 @@ export function useGameProgress(unitId?: string) {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: payload
-          }).catch(() => {
-            lastSyncedPayloadRef.current = "";
-          });
+          })
+            .then(() => clearUnitStateCache(unitId))
+            .catch(() => {
+              lastSyncedPayloadRef.current = "";
+            });
         }, 1200);
       }
     }

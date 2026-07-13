@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { clearUnitStateCache, getUnitState } from "@/lib/unit-state-client";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type WeeklyPlan = {
@@ -116,10 +117,7 @@ export function useSelfManagement(unitId?: string) {
       }
 
       try {
-        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`, {
-          credentials: "include"
-        });
-        const result = await response.json();
+        const result = await getUnitState(unitId);
         const remoteState = result?.data?.selfManagement as Partial<SelfManagementState> | undefined;
 
         if (isMounted) {
@@ -173,9 +171,11 @@ export function useSelfManagement(unitId?: string) {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: payload
-          }).catch(() => {
-            lastSyncedPayloadRef.current = "";
-          });
+          })
+            .then(() => clearUnitStateCache(unitId))
+            .catch(() => {
+              lastSyncedPayloadRef.current = "";
+            });
         }, 1200);
       }
     }

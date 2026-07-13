@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { BlockId } from "@/data/game-data";
+import { clearUnitStateCache, getUnitState } from "@/lib/unit-state-client";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type ChannelInput = {
@@ -184,11 +185,8 @@ export function useCommercialInputs(unitId?: string, registeredUnitName?: string
       }
 
       try {
-        const response = await fetch(`/api/unit-state?unitId=${encodeURIComponent(unitId)}`, {
-          credentials: "include"
-        });
-        const result = await response.json();
-        const remoteProfile = result?.data?.commercialInputs;
+        const result = await getUnitState(unitId);
+        const remoteProfile = result?.data?.commercialInputs as Partial<CommercialProfile> | undefined;
         const remoteUnitName = result?.data?.unitName;
 
         if (isMounted) {
@@ -247,9 +245,11 @@ export function useCommercialInputs(unitId?: string, registeredUnitName?: string
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: payload
-          }).catch(() => {
-            lastSyncedPayloadRef.current = "";
-          });
+          })
+            .then(() => clearUnitStateCache(unitId))
+            .catch(() => {
+              lastSyncedPayloadRef.current = "";
+            });
         }, 1200);
       }
     }

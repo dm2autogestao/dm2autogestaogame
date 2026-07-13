@@ -70,6 +70,7 @@ import {
 } from "@/lib/unit-storage";
 import { maskCnpj, maskEmail } from "@/lib/data-masking";
 import { firebaseAuth, googleProvider } from "@/lib/firebase-client";
+import { clearUnitStateCache } from "@/lib/unit-state-client";
 
 type AuthRole = "franchisee" | "master";
 type AuthView = "login" | "register" | "recover";
@@ -332,9 +333,11 @@ export default function Home() {
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: payload
-          }).catch(() => {
-            lastSyncedFillingPayloadRef.current = "";
-          });
+          })
+            .then(() => clearUnitStateCache(activeUnitId))
+            .catch(() => {
+              lastSyncedFillingPayloadRef.current = "";
+            });
         }, 1500);
       }
 
@@ -1775,7 +1778,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
     <main className="grid min-h-screen items-start bg-white text-ink lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
       <section className="relative h-[220px] overflow-hidden bg-slate-950 lg:sticky lg:top-0 lg:h-screen">
         <img
-          src="/login-facade.png"
+          src="/login-facade.jpg"
           alt="Fachada Doutor DM2"
           className="absolute inset-0 h-full w-full object-cover object-center"
         />
