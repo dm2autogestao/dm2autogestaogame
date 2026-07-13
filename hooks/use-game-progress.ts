@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { journeyBlocks, levels, missions, problems } from "@/data/game-data";
 import type { BlockId, PillarStatus } from "@/data/game-data";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
@@ -54,6 +54,8 @@ export function useGameProgress(unitId?: string) {
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [isReady, setIsReady] = useState(false);
   const [loadedStorageKey, setLoadedStorageKey] = useState("");
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedPayloadRef = useRef("");
   const storageKey = getLocalUnitStorageKey(unitId, "gameProgress", STORAGE_VERSION);
 
   useEffect(() => {
@@ -108,17 +110,38 @@ export function useGameProgress(unitId?: string) {
     if (isReady && loadedStorageKey === storageKey) {
       window.localStorage.setItem(storageKey, JSON.stringify(progress));
       if (unitId) {
-        void fetch("/api/unit-state", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            unitId,
-            gameProgress: progress
-          })
-        }).catch(() => undefined);
+        const payload = JSON.stringify({
+          unitId,
+          gameProgress: progress
+        });
+
+        if (payload === lastSyncedPayloadRef.current) {
+          return;
+        }
+
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+        }
+
+        syncTimeoutRef.current = setTimeout(() => {
+          lastSyncedPayloadRef.current = payload;
+          void fetch("/api/unit-state", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+          }).catch(() => {
+            lastSyncedPayloadRef.current = "";
+          });
+        }, 1200);
       }
     }
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
   }, [isReady, loadedStorageKey, progress, storageKey, unitId]);
 
   const completedSet = useMemo(() => new Set(progress.completedMissions), [progress.completedMissions]);

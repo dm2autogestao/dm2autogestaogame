@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type WeeklyPlan = {
@@ -96,6 +96,8 @@ export function useSelfManagement(unitId?: string) {
   const [state, setState] = useState<SelfManagementState>(defaultState);
   const [isReady, setIsReady] = useState(false);
   const [loadedStorageKey, setLoadedStorageKey] = useState("");
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedPayloadRef = useRef("");
   const storageKey = getLocalUnitStorageKey(unitId, "selfManagement", STORAGE_VERSION);
 
   useEffect(() => {
@@ -151,17 +153,38 @@ export function useSelfManagement(unitId?: string) {
     if (isReady && loadedStorageKey === storageKey) {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
       if (unitId) {
-        void fetch("/api/unit-state", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            unitId,
-            selfManagement: state
-          })
-        }).catch(() => undefined);
+        const payload = JSON.stringify({
+          unitId,
+          selfManagement: state
+        });
+
+        if (payload === lastSyncedPayloadRef.current) {
+          return;
+        }
+
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+        }
+
+        syncTimeoutRef.current = setTimeout(() => {
+          lastSyncedPayloadRef.current = payload;
+          void fetch("/api/unit-state", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+          }).catch(() => {
+            lastSyncedPayloadRef.current = "";
+          });
+        }, 1200);
       }
     }
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
   }, [isReady, loadedStorageKey, state, storageKey, unitId]);
 
   function updatePlan<K extends keyof WeeklyPlan>(field: K, value: WeeklyPlan[K]) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { signInWithPopup, signOut } from "firebase/auth";
 import {
   AlertTriangle,
@@ -245,6 +245,8 @@ export default function Home() {
   const [openProblemId, setOpenProblemId] = useState(problems[0].id);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [fillingHistory, setFillingHistory] = useState<FillingHistorySnapshot | undefined>(undefined);
+  const fillingSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedFillingPayloadRef = useRef("");
   const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
   const game = useGameProgress(activeUnitId);
   const commercial = useCommercialInputs(activeUnitId, authSession?.unitName);
@@ -313,18 +315,37 @@ export default function Home() {
         window.localStorage.setItem(storageKey, JSON.stringify(nextHistory));
       }
 
-      void fetch("/api/unit-state", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          unitId: activeUnitId,
-          fillingHistory: nextHistory
-        })
-      }).catch(() => undefined);
+      const payload = JSON.stringify({
+        unitId: activeUnitId,
+        fillingHistory: nextHistory
+      });
+
+      if (payload !== lastSyncedFillingPayloadRef.current) {
+        if (fillingSyncTimeoutRef.current) {
+          clearTimeout(fillingSyncTimeoutRef.current);
+        }
+
+        fillingSyncTimeoutRef.current = setTimeout(() => {
+          lastSyncedFillingPayloadRef.current = payload;
+          void fetch("/api/unit-state", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+          }).catch(() => {
+            lastSyncedFillingPayloadRef.current = "";
+          });
+        }, 1500);
+      }
 
       return nextHistory;
     });
+
+    return () => {
+      if (fillingSyncTimeoutRef.current) {
+        clearTimeout(fillingSyncTimeoutRef.current);
+      }
+    };
   }, [
     activeUnitId,
     commercial.isReady,

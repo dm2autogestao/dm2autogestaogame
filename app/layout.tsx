@@ -5,8 +5,13 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Jornada Comercial Gamificada",
-  description: "Mini game comercial para executar ICP, canais, funil, indicadores e intervencoes."
+  title: "DM2 AUTO GESTÃO",
+  description: "Ferramenta de gestão comercial e acompanhamento da rede Doutor DM2.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png"
+  }
 };
 
 export const viewport: Viewport = {
