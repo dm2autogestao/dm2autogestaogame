@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/firestore-admin";
+import { clearServerCache, getServerCache, setServerCache } from "@/lib/server-response-cache";
 import { COOKIE_NAME, readSessionToken } from "@/lib/session-security";
 
 type UnitStatePayload = {
@@ -34,13 +35,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Acesso não autorizado." }, { status: 401 });
   }
 
+  const cacheKey = `unit-state:${unitId}`;
+  const cached = getServerCache<{ exists: boolean; unitId: string; data?: FirebaseFirestore.DocumentData }>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "private, max-age=5" }
+    });
+  }
+
   const snapshot = await getDb().collection("units").doc(unitId).get();
 
   if (!snapshot.exists) {
-    return NextResponse.json({ exists: false, unitId });
+    const response = { exists: false, unitId };
+    setServerCache(cacheKey, response, 5000);
+    return NextResponse.json(response, {
+      headers: { "Cache-Control": "private, max-age=5" }
+    });
   }
 
-  return NextResponse.json({ exists: true, unitId, data: snapshot.data() });
+  const response = { exists: true, unitId, data: snapshot.data() };
+  setServerCache(cacheKey, response, 5000);
+
+  return NextResponse.json(response, {
+    headers: { "Cache-Control": "private, max-age=5" }
+  });
 }
 
 export async function POST(request: Request) {
@@ -81,6 +99,8 @@ export async function POST(request: Request) {
   }
 
   await getDb().collection("units").doc(unitId).set(payload, { merge: true });
+  clearServerCache(`unit-state:${unitId}`);
+  clearServerCache("units:");
 
   return NextResponse.json({ ok: true, unitId });
 }

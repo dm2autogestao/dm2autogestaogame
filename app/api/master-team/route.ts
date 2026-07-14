@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/firestore-admin";
 import { hashPassword } from "@/lib/password-security";
+import { clearServerCache, getServerCache, setServerCache } from "@/lib/server-response-cache";
 import { COOKIE_NAME, readSessionToken } from "@/lib/session-security";
 
 export const runtime = "nodejs";
@@ -83,10 +84,21 @@ export async function GET() {
     return NextResponse.json({ error: "Acesso master necessário." }, { status: 401 });
   }
 
+  const cached = getServerCache<{ members: ReturnType<typeof serializeMember>[] }>("master-team:list");
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "private, max-age=30" }
+    });
+  }
+
   const snapshot = await getDb().collection("masterTeam").orderBy("createdAt", "desc").get();
   const members = snapshot.docs.map((doc) => serializeMember(doc.id, doc.data()));
+  const response = { members };
+  setServerCache("master-team:list", response, 30000);
 
-  return NextResponse.json({ members });
+  return NextResponse.json(response, {
+    headers: { "Cache-Control": "private, max-age=30" }
+  });
 }
 
 export async function POST(request: Request) {
@@ -130,6 +142,7 @@ export async function POST(request: Request) {
   };
 
   await getDb().collection("masterTeam").doc(email).set(member);
+  clearServerCache("master-team:");
 
   return NextResponse.json({ ok: true, member: serializeMember(email, { ...member, createdAt: new Date().toISOString() }) });
 }
@@ -192,6 +205,7 @@ export async function PATCH(request: Request) {
   } else {
     await current.ref.set(nextData, { merge: true });
   }
+  clearServerCache("master-team:");
 
   return NextResponse.json({
     ok: true,
@@ -212,6 +226,7 @@ export async function DELETE(request: Request) {
   }
 
   await getDb().collection("masterTeam").doc(email).delete();
+  clearServerCache("master-team:");
 
   return NextResponse.json({ ok: true, email });
 }

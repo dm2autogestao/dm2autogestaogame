@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { getDb } from "@/lib/firestore-admin";
 import { maskCnpj, maskEmail, maskPhone } from "@/lib/data-masking";
 import { hashPassword } from "@/lib/password-security";
+import { clearServerCache, getServerCache, setServerCache } from "@/lib/server-response-cache";
 import { COOKIE_NAME, readSessionToken } from "@/lib/session-security";
 
 export const runtime = "nodejs";
@@ -111,10 +112,21 @@ export async function GET() {
     return NextResponse.json({ error: "Acesso master necessário." }, { status: 401 });
   }
 
+  const cached = getServerCache<{ units: ReturnType<typeof serializeUnit>[] }>("units:list");
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "private, max-age=20" }
+    });
+  }
+
   const snapshot = await getDb().collection("units").orderBy("createdAt", "desc").get();
   const units = snapshot.docs.map((doc) => serializeUnit(doc.id, doc.data()));
+  const response = { units };
+  setServerCache("units:list", response, 20000);
 
-  return NextResponse.json({ units });
+  return NextResponse.json(response, {
+    headers: { "Cache-Control": "private, max-age=20" }
+  });
 }
 
 export async function POST(request: Request) {
@@ -144,6 +156,8 @@ export async function POST(request: Request) {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
+  clearServerCache("units:");
+  clearServerCache(`unit-state:${unit.cnpj}`);
 
   return NextResponse.json({ ok: true, unit: { ...unit, status, password: undefined } });
 }
@@ -191,6 +205,11 @@ export async function PATCH(request: Request) {
   } else {
     await getDb().collection("units").doc(originalCnpj).set(nextData, { merge: true });
   }
+  clearServerCache("units:");
+  clearServerCache(`unit-state:${originalCnpj}`);
+  if (unit.cnpj) {
+    clearServerCache(`unit-state:${unit.cnpj}`);
+  }
 
   return NextResponse.json({ ok: true, unit: nextData });
 }
@@ -208,6 +227,8 @@ export async function DELETE(request: Request) {
   }
 
   await getDb().collection("units").doc(unitId).delete();
+  clearServerCache("units:");
+  clearServerCache(`unit-state:${unitId}`);
 
   return NextResponse.json({ ok: true, unitId });
 }
