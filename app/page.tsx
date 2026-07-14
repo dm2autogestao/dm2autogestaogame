@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { signInWithPopup, signOut } from "firebase/auth";
 import {
   AlertTriangle,
@@ -70,7 +70,7 @@ import {
 } from "@/lib/unit-storage";
 import { maskCnpj, maskEmail } from "@/lib/data-masking";
 import { firebaseAuth, googleProvider } from "@/lib/firebase-client";
-import { clearUnitStateCache } from "@/lib/unit-state-client";
+import { scheduleUnitStateUpdate } from "@/lib/unit-state-client";
 
 type AuthRole = "franchisee" | "master";
 type AuthView = "login" | "register" | "recover";
@@ -246,8 +246,6 @@ export default function Home() {
   const [openProblemId, setOpenProblemId] = useState(problems[0].id);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [fillingHistory, setFillingHistory] = useState<FillingHistorySnapshot | undefined>(undefined);
-  const fillingSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSyncedFillingPayloadRef = useRef("");
   const activeUnitId = authSession?.role === "franchisee" ? authSession.cnpj : undefined;
   const game = useGameProgress(activeUnitId);
   const commercial = useCommercialInputs(activeUnitId, authSession?.unitName);
@@ -316,39 +314,12 @@ export default function Home() {
         window.localStorage.setItem(storageKey, JSON.stringify(nextHistory));
       }
 
-      const payload = JSON.stringify({
-        unitId: activeUnitId,
+      scheduleUnitStateUpdate(activeUnitId, {
         fillingHistory: nextHistory
       });
 
-      if (payload !== lastSyncedFillingPayloadRef.current) {
-        if (fillingSyncTimeoutRef.current) {
-          clearTimeout(fillingSyncTimeoutRef.current);
-        }
-
-        fillingSyncTimeoutRef.current = setTimeout(() => {
-          lastSyncedFillingPayloadRef.current = payload;
-          void fetch("/api/unit-state", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: payload
-          })
-            .then(() => clearUnitStateCache(activeUnitId))
-            .catch(() => {
-              lastSyncedFillingPayloadRef.current = "";
-            });
-        }, 1500);
-      }
-
       return nextHistory;
     });
-
-    return () => {
-      if (fillingSyncTimeoutRef.current) {
-        clearTimeout(fillingSyncTimeoutRef.current);
-      }
-    };
   }, [
     activeUnitId,
     commercial.isReady,

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BlockId } from "@/data/game-data";
-import { clearUnitStateCache, getUnitState } from "@/lib/unit-state-client";
+import { getUnitState, scheduleUnitStateUpdate } from "@/lib/unit-state-client";
 import { getLocalUnitStorageKey } from "@/lib/unit-storage";
 
 export type ChannelInput = {
@@ -165,8 +165,6 @@ function readProfile(storageKey: string, fallbackUnitName = "Sua Unidade"): Comm
 export function useCommercialInputs(unitId?: string, registeredUnitName?: string) {
   const [profile, setProfile] = useState<CommercialProfile>(defaultProfile);
   const [isReady, setIsReady] = useState(false);
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSyncedPayloadRef = useRef("");
   const storageKey = getLocalUnitStorageKey(unitId, "commercialInputs", STORAGE_VERSION);
   const fallbackUnitName = registeredUnitName?.trim() || "Sua Unidade";
 
@@ -224,41 +222,12 @@ export function useCommercialInputs(unitId?: string, registeredUnitName?: string
     if (isReady) {
       window.localStorage.setItem(storageKey, JSON.stringify(profile));
       if (unitId) {
-        const payload = JSON.stringify({
-          unitId,
+        scheduleUnitStateUpdate(unitId, {
           unitName: profile.unitName,
           commercialInputs: profile
         });
-
-        if (payload === lastSyncedPayloadRef.current) {
-          return;
-        }
-
-        if (syncTimeoutRef.current) {
-          clearTimeout(syncTimeoutRef.current);
-        }
-
-        syncTimeoutRef.current = setTimeout(() => {
-          lastSyncedPayloadRef.current = payload;
-          void fetch("/api/unit-state", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: payload
-          })
-            .then(() => clearUnitStateCache(unitId))
-            .catch(() => {
-              lastSyncedPayloadRef.current = "";
-            });
-        }, 1200);
       }
     }
-
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-    };
   }, [profile, isReady, storageKey, unitId]);
 
   function updateUnitName(unitName: string) {
